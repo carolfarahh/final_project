@@ -3,7 +3,7 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src import data_import
+from src.data_import import load_data
 def load_data_test(file_path):
     try:
         load_data(file_path)
@@ -11,5 +11,7 @@ def load_data_test(file_path):
         print(f"File not found: {file_path}")
     except PermissionError:
         print(f"Permission denied when accessing the file: {file_path}")
-    except exception as e:
+    except Exception as e:
         print("Failed to")
+    else:
+        print("Data set loaded successfully")
