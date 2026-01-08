@@ -1,4 +1,5 @@
 import pingouin as pg
+import numpy as np
 
 def data_describe(df):
     data_stats = df.describe()
