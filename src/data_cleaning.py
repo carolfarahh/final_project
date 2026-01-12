@@ -1,4 +1,6 @@
 import pandas as pd
+from sklearn.ensemble import IsolationForest
+
 
 def stage_filter(df, column, value):
     df = df.copy()
@@ -28,3 +30,12 @@ def remove_outliers_iqr(df, column, multiplier=1.5):
     upper_bound = Q3 + multiplier * IQR
 
     return df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
+
+
+def remove_outlier_isolate_forest(df, column):
+    X = df[[column]]
+    iso = IsolationForest(contamination=0.05, random_state=100)
+    df["IsoForest_Outlier"] = iso.fit_predict(X)
+    df_cleaned = df[df["IsoForest_Outlier"] == 1].copy()
+    df_cleaned = df_cleaned.drop(columns=["IsoForest_Outlier"])
+    return df_cleaned

@@ -1,5 +1,7 @@
 import pingouin as pg
 import numpy as np
+from scipy.stats import f_oneway
+
 
 def data_describe(df):
     data_stats = df.describe()
@@ -30,7 +32,10 @@ def anova(dv, analysis_df, iv):
 
 def welch_anova(df, dependent_variable, independent_variable):
     results = pg.welch_anova(data=df, dv=dependent_variable, between=independent_variable)
-    return results
+    f_stat = results['F'].item()
+    p_value = results['p-unc'].item()
+
+    return f_stat, p_value
 
 
 def gameshowell(df, dependent_variable, independent_variable):
