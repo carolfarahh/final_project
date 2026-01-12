@@ -1,6 +1,6 @@
 
 
-def load_hd_data(csv_path):
+def load_data(csv_path):
     """
     Load HD dataset and return:
     - analysis_df: Disease stage, Gene factor, Brain-volume-loss
