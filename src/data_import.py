@@ -1,4 +1,6 @@
-
+import pandas as pd
+import pingouin as pg
+import numpy as np
 
 def load_data(csv_path):
     """
@@ -13,20 +15,25 @@ def load_data(csv_path):
     df.columns = df.columns.str.strip().str.lower()
 
     required_columns = [
-        "age",
-        "gender",
-        "disease stage",
-        "gene factor",
-        "brain-volume-loss"
+        "Age",
+        "Sex",
+        "Disease_Stage",
+        "Gene/Factor",
+        "Brain_Volume_Loss"
     ]
 
     missing = [col for col in required_columns if col not in df.columns]
     if missing:
         raise ValueError(f"Missing columns: {missing}")
 
-    demo_df = df[["age", "gender"]].copy()
+    demo_df = df[["Age", "Gender"]].copy()
     analysis_df = df[
-        ["disease stage", "gene factor", "brain-volume-loss"]
+        ["Disease_Stage", "Gene/Factor", "Brain_Volume_Loss"]
     ].copy()
 
     return analysis_df, demo_df
+
+
+def load_data_c(file_path, columns_list):
+    data = pd.read_csv(file_path)
+    return data[columns_list]
