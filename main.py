@@ -5,8 +5,6 @@ import numpy as np
 from sklearn.ensemble import IsolationForest
 from scipy.stats import f_oneway
 
-
-
 from src.data_import import load_data_c
 from src.data_cleaning import stage_filter, gene_filter, transform_to_float, remove_outlier_isolate_forest
 from src.statistical_analysis import data_describe, levene_test, anova, welch_anova, tukey, gameshowell
