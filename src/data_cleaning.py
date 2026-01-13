@@ -45,19 +45,18 @@ def load_hd_data(csv_path):
 #leven's_test 
 import pandas as pd
 from scipy.stats import levene
+def levene_hd(analysis_df):
+    groups = [
+        g["brain-volume-loss"].dropna()
+        for _, g in analysis_df.groupby("disease stage")
+    ]
 
-groups = [
-    g["brain-volume-loss"].dropna()
-    for _, g in analysis_df.groupby("disease stage")
-]
+    stat, p_value = levene(*groups)
+    return stat, p_value
 
-stat, p = levene(*groups)
-
-print(f"Levene statistic = {stat:.3f}, p = {p:.4f}")
 
 # one-way ANOVA
 from scipy.stats import f_oneway
-
 def anova_hd(analysis_df):
     groups = [
         g["brain-volume-loss"].dropna()
