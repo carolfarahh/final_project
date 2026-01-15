@@ -109,7 +109,7 @@ import pandas as pd
 from statsmodels.formula.api import ols
 from statsmodels.stats.anova import anova_lm
 
-def additive_anova(df, dv, factor1, factor2):
+def additive_anova(df, dv, factor1, factor2, levine_test):
 
     model = ols(
         f'{dv} ~ C({factor1}) + C({factor2})',
@@ -120,6 +120,18 @@ def additive_anova(df, dv, factor1, factor2):
     else:
         return anova_lm(model, typ=2)
 
+import pandas as pd
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
+
+def additive_posthoc_tukey(df, dv, factor, alpha=0.05):
+    
+    tukey = pairwise_tukeyhsd(
+        endog=df[dv],
+        groups=df[factor],
+        alpha=alpha
+    )
+    
+    return tukey
     
 
 
