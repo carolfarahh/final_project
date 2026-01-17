@@ -1,7 +1,20 @@
+# Python cache
 __pycache__/
 **/__pycache__/
 *.pyc
 
+# Virtual env
+.venv/
+venv/
+Include/
+Lib/
+Scripts/
+share/
+pyvenv.cfg
 
+# Data (recommended)
 Data/
 *.csv
+
+# IDE
+.vscode/

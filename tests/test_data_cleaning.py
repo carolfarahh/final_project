@@ -1,149 +1,105 @@
 import pandas as pd
-from src.data_cleaning import stage_filter, gene_filter
+import pytest
+from src.data_cleaning import select_columns
 
 
-import pandas as pd
-from src.data_cleaning import stage_filter
+def test_select_columns_keeps_only_requested_columns():
+    df = pd.DataFrame({"A": [1, 2], "B": [3, 4], "C": [5, 6]})
+    out = select_columns(df, ["A", "C"])
+    assert list(out.columns) == ["A", "C"]
+    assert out.shape == (2, 2)
 
 
-# =============================================================================
-# Tests: stage_filter
-#
-# This section tests stage_filter(df, column, value).
-#
-# What these tests check:
-#   1) Normal behavior: returns only rows that match the requested stage.
-#   2) Common messy data: handles leading/trailing spaces in the column values.
-#   3) No side effects: does not change the original input DataFrame.
-#   4) Invalid input: raises KeyError when the column does not exist.
-#   5) Empty input: returns an empty result for an empty DataFrame.
-# =============================================================================
+def test_select_columns_raises_keyerror_when_missing():
+    df = pd.DataFrame({"A": [1]})
+    with pytest.raises(KeyError):
+        select_columns(df, ["A", "B"])
 
 
-def test_stage_filter_returns_only_requested_stage():
-    """Normal case: should return only rows matching the requested stage."""
-    df_original = pd.DataFrame(
-        {"Disease_Stage": ["Pre-Symptomatic", "Early", "Pre-Symptomatic"]}
-    )
-
-    df_filtered = stage_filter(df_original, "Disease_Stage", "Pre-Symptomatic")
-
-    assert len(df_filtered) == 2
-    assert df_filtered["Disease_Stage"].eq("Pre-Symptomatic").all()
 
 
-def test_stage_filter_handles_spaces_in_column_values():
-    """
-    Common data issue:
-    String values may include extra spaces at the beginning or end.
-    The function should trim spaces in the column before filtering.
-    """
-    df_original = pd.DataFrame(
-        {"Disease_Stage": [" Pre-Symptomatic  ", "Early", "Pre-Symptomatic "]}
-    )
 
-    df_filtered = stage_filter(df_original, "Disease_Stage", "Pre-Symptomatic")
-
-    assert len(df_filtered) == 2
-    assert df_filtered["Disease_Stage"].eq("Pre-Symptomatic").all()
+from src.data_cleaning import strip_spaces_columns
 
 
-def test_stage_filter_does_not_modify_input_dataframe():
-    """
-    Side-effect check:
-    The function should not change the original DataFrame.
-    This matters because other project steps may reuse the original data.
-    """
-    df_original = pd.DataFrame({"Disease_Stage": ["Pre-Symptomatic ", "Early"]})
-
-    _ = stage_filter(df_original, "Disease_Stage", "Pre-Symptomatic")
-
-    # The original value should remain unchanged (still has the trailing space)
-    assert df_original.loc[0, "Disease_Stage"] == "Pre-Symptomatic "
+def test_strip_spaces_columns_removes_spaces():
+    df = pd.DataFrame({"a": ["  X  "], "b": ["   Y"]})
+    out = strip_spaces_columns(df, ["a", "b"])
+    assert out.loc[0, "a"] == "X"
+    assert out.loc[0, "b"] == "Y"
 
 
-def test_stage_filter_missing_column_raises_keyerror():
-    """Invalid input: if the column is missing, pandas should raise KeyError."""
-    df_original = pd.DataFrame({"Some_Other_Column": [1, 2]})
-
-    try:
-        stage_filter(df_original, "Disease_Stage", "Pre-Symptomatic")
-        assert False  # If we reach this line, no error was raised (unexpected)
-    except KeyError:
-        assert True
+def test_strip_spaces_columns_keeps_missing_as_missing():
+    df = pd.DataFrame({"a": ["  X  "], "b": [None]})
+    out = strip_spaces_columns(df, ["a", "b"])
+    assert pd.isna(out.loc[0, "b"])
 
 
-def test_stage_filter_empty_dataframe_returns_empty_result():
-    """Empty input: an empty DataFrame should return an empty filtered result."""
-    df_original = pd.DataFrame({"Disease_Stage": []})
-
-    df_filtered = stage_filter(df_original, "Disease_Stage", "Pre-Symptomatic")
-
-    assert len(df_filtered) == 0
 
 
-import pandas as pd
 from src.data_cleaning import gene_filter
 
 
-# =============================================================================
-# Tests: gene_filter
-#
-# What these tests check:
-#   1) Normal behavior: returns only rows whose value is in values_list.
-#   2) Handles extra spaces in the DataFrame column values.
-#   3) Handles extra spaces in values_list (input list cleaning).
-#   4) No side effects: does not change the original input DataFrame.
-#   5) Invalid input: raises KeyError when the column does not exist.
-# =============================================================================
+def test_gene_filter_keeps_only_requested_values():
+    df = pd.DataFrame({
+        "Gene/Factor": ["MLH1", "MSH3", "HTT (Somatic Expansion)", "OTHER"]
+    })
+    out = gene_filter(df, "Gene/Factor", ["MLH1", "MSH3", "HTT (Somatic Expansion)"])
+    assert out["Gene/Factor"].tolist() == ["MLH1", "MSH3", "HTT (Somatic Expansion)"]
 
 
-def test_gene_filter_normal_case():
-    """Normal case: should return only rows where the gene is in the list."""
-    df_original = pd.DataFrame({"Gene": ["MLH1", "MSH3", "FAN1", "MLH1"]})
 
-    df_filtered = gene_filter(df_original, "Gene", ["MLH1", "MSH3"])
-
-    assert len(df_filtered) == 3
-    assert df_filtered["Gene"].isin(["MLH1", "MSH3"]).all()
+def test_gene_filter_returns_empty_when_no_match():
+    df = pd.DataFrame({"Gene/Factor": ["OTHER"]})
+    out = gene_filter(df, "Gene/Factor", ["MLH1"])
+    assert out.shape[0] == 0
 
 
-def test_gene_filter_handles_spaces_in_column_values():
-    """Column values may contain extra spaces; the function should trim them."""
-    df_original = pd.DataFrame({"Gene": [" MLH1  ", "MSH3", " FAN1 ", "MLH1 "]})
-
-    df_filtered = gene_filter(df_original, "Gene", ["MLH1", "MSH3"])
-
-    assert len(df_filtered) == 3
-    assert df_filtered["Gene"].isin(["MLH1", "MSH3"]).all()
+import pandas as pd
+from src.data_cleaning import drop_missing_required
 
 
-def test_gene_filter_handles_spaces_in_values_list():
-    """values_list may contain extra spaces; the function should trim them."""
-    df_original = pd.DataFrame({"Gene": ["MLH1", "MSH3", "FAN1"]})
-
-    df_filtered = gene_filter(df_original, "Gene", [" MLH1 ", " MSH3 "])
-
-    assert len(df_filtered) == 2
-    assert df_filtered["Gene"].isin(["MLH1", "MSH3"]).all()
-
-
-def test_gene_filter_does_not_modify_input_dataframe():
-    """The function should not change the original DataFrame (no side effects)."""
-    df_original = pd.DataFrame({"Gene": [" MLH1  ", "FAN1"]})
-
-    _ = gene_filter(df_original, "Gene", ["MLH1"])
-
-    # Original value should remain unchanged (still includes spaces)
-    assert df_original.loc[0, "Gene"] == " MLH1  "
+def test_drop_missing_required_drops_rows_with_missing_in_required_columns():
+    df = pd.DataFrame({
+        "Age": [20, None, 30],
+        "Sex": ["F", "M", "F"],
+        "Brain Volume Loss": [0.1, 0.2, None],
+    })
+    out = drop_missing_required(df, ["Age", "Brain Volume Loss"])
+    assert out.shape[0] == 1
+    assert out["Age"].tolist() == [20]
+    assert out["Brain Volume Loss"].tolist() == [0.1]
 
 
-def test_gene_filter_missing_column_raises_keyerror():
-    """If the column is missing, pandas should raise KeyError."""
-    df_original = pd.DataFrame({"X": ["MLH1", "MSH3"]})
+def test_drop_missing_required_does_not_drop_when_missing_is_in_non_required_column():
+    df = pd.DataFrame({
+        "Age": [20, 25],
+        "Sex": ["F", "M"],
+        "Brain Volume Loss": [0.1, 0.2],
+        "Extra": [None, "ok"],
+    })
+    out = drop_missing_required(df, ["Age", "Sex", "Brain Volume Loss"])
+    assert out.shape[0] == 2
 
-    try:
-        gene_filter(df_original, "Gene", ["MLH1"])
-        assert False
-    except KeyError:
-        assert True
+
+
+import pandas as pd
+from src.data_cleaning import convert_numeric_columns
+
+
+def test_convert_numeric_columns_converts_numeric_strings_to_numbers():
+    df = pd.DataFrame({"Age": ["20", "30"], "Brain Volume Loss": ["0.1", "0.2"]})
+    out = convert_numeric_columns(df, ["Age", "Brain Volume Loss"])
+
+    assert out["Age"].tolist() == [20, 30]
+    assert out["Brain Volume Loss"].tolist() == [0.1, 0.2]
+
+
+def test_convert_numeric_columns_coerces_invalid_values_to_nan():
+    df = pd.DataFrame({"Age": ["20", "bad"]})
+    out = convert_numeric_columns(df, ["Age"])
+
+    assert out["Age"].tolist()[0] == 20
+    assert pd.isna(out["Age"].tolist()[1])
+
+
