@@ -103,3 +103,22 @@ def test_convert_numeric_columns_coerces_invalid_values_to_nan():
     assert pd.isna(out["Age"].tolist()[1])
 
 
+
+from src.data_cleaning import normalize_case_columns
+
+
+def test_normalize_case_columns_lower_fixes_mixed_case():
+    df = pd.DataFrame({"Sex": ["mAlE", "FEMale"]})
+    out = normalize_case_columns(df, ["Sex"], method="lower")
+
+    assert out["Sex"].tolist() == ["male", "female"]
+
+
+def test_normalize_case_columns_upper_fixes_mixed_case_and_preserves_nan():
+    df = pd.DataFrame({"Sex": ["mAlE", None]})
+    out = normalize_case_columns(df, ["Sex"], method="upper")
+
+    assert out["Sex"].tolist()[0] == "MALE"
+    assert pd.isna(out["Sex"].tolist()[1])
+
+

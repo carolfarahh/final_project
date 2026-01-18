@@ -31,3 +31,26 @@ def convert_numeric_columns(df, columns):
         df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
+
+def normalize_case_columns(df, columns, method="lower"):
+    df = df.copy()
+
+    if method not in {"lower", "upper"}:
+        raise ValueError("method must be 'lower' or 'upper'")
+
+    for col in columns:
+        if col not in df.columns:
+            raise KeyError(f"Missing column: {col}")
+
+        text_series = df[col].astype("string")
+
+        if method == "lower":
+            df[col] = text_series.str.lower()
+        else:
+            df[col] = text_series.str.upper()
+
+    return df
+
+
+
+
