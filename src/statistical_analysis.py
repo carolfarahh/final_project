@@ -93,9 +93,6 @@ def simple_effects_tukey(df, dv, factor1, factor2, alpha=0.05, levine_test): #in
                     else:
                         gameshowell = pg.pairwise_gameshowell(data=sub_df,dv=dv,between=other_factor)
                         results[factor][level]['posthoc'] = gameshowell
-        else:
-            continue
-
     return results
 
 
