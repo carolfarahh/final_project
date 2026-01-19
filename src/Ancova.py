@@ -64,9 +64,9 @@ def check_linearity_age_dv(df, dv="brain-volume-loss", cov="age", show_plot=True
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
-def check_homogeneity_of_slopes(df,DV,IV,Covariate,CV):
+def check_homogeneity_of_slopes(df,DV,IV,Covariate,):
     model = ols(
-        f"Q({DV}) ~ C(Q({IV})) * Q({Covariate}) + C(Q({CV}))",
+        f"Q({DV}) ~ C(Q({IV})) * Q({Covariate})))",
         data=df
     ).fit()
 
