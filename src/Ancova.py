@@ -29,15 +29,36 @@ def check_independence_duplicates(df, id_col="participant_id"):
     dup_ids = df[df.duplicated(subset=[id_col], keep=False)].sort_values(id_col)
     return dup_ids  # empty = good sign (no repeats)
 
-# 2) linearity between covariate and DV. 
+# 2) linearity between covariate and DV (WITH VISUALIZATION)
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
-def check_linearity_age_dv(df, dv="brain-volume-loss", cov="age"):
+def check_linearity_age_dv(df, dv="brain-volume-loss", cov="age", show_plot=True):
+    # numeric arrays
     x = df[cov].astype(float).values
     y = df[dv].astype(float).values
+
+    # Pearson correlation (numeric check)
     r, p = pearsonr(x, y)
+
+    # Visualization (scatter + best-fit line)
+    if show_plot:
+        plt.figure()
+        plt.scatter(x, y, alpha=0.7)
+
+        # best-fit line
+        m, b = np.polyfit(x, y, 1)
+        x_line = np.linspace(x.min(), x.max(), 200)
+        plt.plot(x_line, m * x_line + b)
+
+        plt.xlabel(cov)
+        plt.ylabel(dv)
+        plt.title(f"Linearity check: {cov} vs {dv} (r={r:.2f}, p={p:.3g})")
+        plt.show()
+
     return {"pearson_r": float(r), "p_value": float(p)}
+
 
 # 3) homogeneity of regression slopes.
 import statsmodels.api as sm
@@ -70,18 +91,34 @@ def check_homogeneity_of_variance_levene(df, dv="brain-volume-loss", group="dise
     return {"levene_stat": float(stat), "p_value": float(p)}
 
 # 5)  normality of residuals. 
-from scipy.stats import shapiro
+import matplotlib.pyplot as plt
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
 
-def check_normality_of_residuals(df):
+def check_normality_of_residuals_visual(df):
     model = ols(
         "Q('brain-volume-loss') ~ C(Q('disease stage')) + Q('age') + C(Q('gender'))",
         data=df
     ).fit()
 
     resid = model.resid.dropna()
-    stat, p = shapiro(resid)
 
-    return {"shapiro_stat": float(stat), "p_value": float(p), "n_resid": int(resid.shape[0])}
+    # Histogram
+    plt.figure()
+    plt.hist(resid, bins=30)
+    plt.title("Residuals Histogram")
+    plt.xlabel("Residuals")
+    plt.ylabel("Frequency")
+    plt.show()
+
+    # Q-Q Plot
+    plt.figure()
+    sm.qqplot(resid, line="45")
+    plt.title("Q-Q Plot of Residuals")
+    plt.show()
+
+    return {"n_resid": int(resid.shape[0])}
+
 
 #6) multicollinearity VIF between predictors.
 import numpy as np
@@ -162,5 +199,4 @@ def run_ancova(df):
     # ANCOVA table
     ancova_table = sm.stats.anova_lm(model, typ=2)
 
-    return ancova_table, model
-
+    
