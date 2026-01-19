@@ -14,11 +14,13 @@ import statsmodels.formula.api as smf
 #TODO: things in common between both tests: Data describe
 
 def factor_categorical(df, factor1, factor2):
-    df[factor1] = df[factor1].astype('category')
-    df[factor2] = df[factor2].astype('category')
-    return df[factor1], df[factor2]
+    df = df.copy()
+    df[factor1] = df[factor1].astype("category")
+    df[factor2] = df[factor2].astype("category")
+    return df
 
-def summarize(x):
+
+def summarize(x, ci=0.95):
     n = x.count()
     mean = x.mean()
     sd = x.std(ddof=1)
@@ -28,10 +30,16 @@ def summarize(x):
     ci_high = mean + t_crit * se if n > 1 else np.nan
 
     return pd.Series({
-        "N": n, "Mean_DV": mean, "SD_DV": sd, "SE_DV": se, f"CI_{int(ci*100)}_Lower": ci_low, f"CI_{int(ci*100)}_Upper": ci_high})
+        "N": n,
+        "Mean_DV": mean,
+        "SD_DV": sd,
+        "SE_DV": se,
+        f"CI_{int(ci*100)}_Lower": ci_low,
+        f"CI_{int(ci*100)}_Upper": ci_high
+    })
     
 
-def descriptive_table_two_way(df,dv,factor_a,factor_b,ci=0.95):
+def descriptive_table_two_way(df,dv,factor_a,factor_b):
     table = (
         df
         .groupby([factor_a, factor_b])[dv]
@@ -41,7 +49,7 @@ def descriptive_table_two_way(df,dv,factor_a,factor_b,ci=0.95):
     return table
 
 
-def descriptive_table_ancova(df, dv, iv, covariate, ci=0.95):
+def descriptive_table_ancova(df, dv, iv, covariate):
     dv_stats = df.groupby(iv)[dv].apply(summarize).reset_index()
     cov_stats = df.groupby(iv)[covariate].mean().reset_index().rename(columns={covariate: f"Mean_{covariate}"})
     table = pd.merge(dv_stats, cov_stats, on=iv)
@@ -64,36 +72,36 @@ def anova_model(df, dv, factor1, factor2, levene_test, check_interaction):
         anova_table = anova_lm(model, typ=2)  #Without HC3
         return anova_table    
 
-def simple_effects_tukey(df, dv, factor1, factor2, alpha=0.05, levine_test): #in case the interaction is significant, check simple effects
+# def simple_effects_tukey(df, dv, factor1, factor2, alpha=0.05, levine_test): #in case the interaction is significant, check simple effects
 
-    factors = [factor1, factor2]
-    results = {}
-    for factor in factors:
-        other_factor = [f for f in factors if f != factor][0]
-        if df[factor].astype("category").cat.categories.size > 1:   ########### Really understand how simple effects work
-            results.setdefault(factor, {})
+#     factors = [factor1, factor2]
+#     results = {}
+#     for factor in factors:
+#         other_factor = [f for f in factors if f != factor][0]
+#         if df[factor].astype("category").cat.categories.size > 1:   ########### Really understand how simple effects work
+#             results.setdefault(factor, {})
 
-            for level in df[factor].cat.categories:
-                sub_df = df[df[factor] == level]
-                # Simple effect ANOVA for factor1 at this level
-                model_sub = ols(f'{dv} ~ C({other_factor})', data=sub_df).fit()                   
-                if levine_test == "negative":
-                    anova_sub = anova_lm(model_sub, typ=2)                
-                else:
-                    anova_sub = anova_lm(model_sub, typ=2, robust="hc3")
+#             for level in df[factor].cat.categories:
+#                 sub_df = df[df[factor] == level]
+#                 # Simple effect ANOVA for factor1 at this level
+#                 model_sub = ols(f'{dv} ~ C({other_factor})', data=sub_df).fit()                   
+#                 if levine_test == "negative":
+#                     anova_sub = anova_lm(model_sub, typ=2)                
+#                 else:
+#                     anova_sub = anova_lm(model_sub, typ=2, robust="hc3")
 
-                results[factor][level] = {'anova': anova_sub}
+#                 results[factor][level] = {'anova': anova_sub}
 
 
-                if anova_sub.loc[f"C({other_factor})", "PR(>F)"] < 0.05:
-                    if levine_test == "negative":
-                    # Tukey post-hoc for all pairwise comparisons of factor1
-                        tukey = pairwise_tukeyhsd(endog=sub_df[dv], groups=sub_df[other_factor], alpha=alpha)                    
-                        results[factor][level]['posthoc'] = tukey
-                    else:
-                        gameshowell = pg.pairwise_gameshowell(data=sub_df,dv=dv,between=other_factor)
-                        results[factor][level]['posthoc'] = gameshowell
-    return results
+#                 if anova_sub.loc[f"C({other_factor})", "PR(>F)"] < 0.05:
+#                     if levine_test == "negative":
+#                     # Tukey post-hoc for all pairwise comparisons of factor1
+#                         tukey = pairwise_tukeyhsd(endog=sub_df[dv], groups=sub_df[other_factor], alpha=alpha)                    
+#                         results[factor][level]['posthoc'] = tukey
+#                     else:
+#                         gameshowell = pg.pairwise_gameshowell(data=sub_df,dv=dv,between=other_factor)
+#                         results[factor][level]['posthoc'] = gameshowell
+#     return results
 
 
 def posthoc_main_effect(df,dv,factor,main_effect_p,levene_test,alpha=0.05):

@@ -1,9 +1,9 @@
 import pandas as pd
+from pathlib import Path
 
-def load_data(file_path):
-    data = pd.read_csv(file_path)
-    return data
+def load_data(path):
+    path_new = Path(path)
+    if not path_new.exists():
+        raise FileNotFoundError(f"CSV file not found: {path_new.resolve()}")
+    return pd.read_csv(path)
 
-def load_data_c(file_path, columns_list):
-    data = pd.read_csv(file_path)
-    return data[columns_list]
