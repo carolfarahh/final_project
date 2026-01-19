@@ -66,7 +66,7 @@ from statsmodels.formula.api import ols
 
 def check_homogeneity_of_slopes(df):
     model = ols(
-        "Q('brain-volume-loss') ~ C(Q('disease stage')) * Q('age') + C(Q('gender'))",
+        "Q('DV') ~ C(Q('IV')) * Q('Covariate') + C(Q('CV'))",
         data=df
     ).fit()
 
@@ -144,7 +144,7 @@ def check_vif(df):
 # 7) outliers points. 
 def check_influence_cooks_distance(df):
     model = ols(
-        "Q('brain-volume-loss') ~ C(Q('disease stage')) + Q('age') + C(Q('gender'))",
+        "Q('DV') ~ C(Q('IV')) + Q('Covariate') + C(Q('CV'))",
         data=df
     ).fit()
 
@@ -192,7 +192,7 @@ def load_and_filter_somatic(csv_path):
 def run_ancova(df):
     # ANCOVA model
     model = ols(
-        "Q('brain-volume-loss') ~ C(Q('disease stage')) + Q('age') + C(Q('gender'))",
+        "Q('DV') ~ C(Q('IV')) + Q('Covariate') + C(Q('CV'))",
         data=df
     ).fit()
 
