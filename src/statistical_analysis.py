@@ -2,7 +2,7 @@ import pandas as pd
 from scipy.stats import levene
 
 
-def levene_test(df, dependent_variable, group_variable, center="median", dropna=True, min_group_size=2):
+def levene_test(df, dependent_variable, group_variable, center="mean", dropna=True, min_group_size=2):
     if dependent_variable not in df.columns:
         raise KeyError(f"Missing column: {dependent_variable}")
     if group_variable not in df.columns:

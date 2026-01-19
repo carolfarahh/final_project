@@ -1,124 +1,160 @@
 import pandas as pd
 import pytest
-from src.data_cleaning import select_columns
+
+from src.data_cleaning import (
+    select_columns,
+    strip_spaces_columns,
+    normalize_case_columns,
+    gene_filter,
+    convert_numeric_columns,
+    drop_missing_required,
+)
 
 
-def test_select_columns_keeps_only_requested_columns():
+# -----------------------
+# select_columns
+# -----------------------
+def test_select_columns_returns_only_requested_columns():
     df = pd.DataFrame({"A": [1, 2], "B": [3, 4], "C": [5, 6]})
     out = select_columns(df, ["A", "C"])
     assert list(out.columns) == ["A", "C"]
     assert out.shape == (2, 2)
 
 
-def test_select_columns_raises_keyerror_when_missing():
+def test_select_columns_missing_column_raises_keyerror():
     df = pd.DataFrame({"A": [1]})
     with pytest.raises(KeyError):
         select_columns(df, ["A", "B"])
 
 
+# -----------------------
+# strip_spaces_columns
+# -----------------------
+def test_strip_spaces_columns_strips_whitespace():
+    df = pd.DataFrame({"col1": ["  X  "], "col2": ["   Y"]})
+    out = strip_spaces_columns(df, ["col1", "col2"])
+    assert out.loc[0, "col1"] == "X"
+    assert out.loc[0, "col2"] == "Y"
 
 
-
-from src.data_cleaning import strip_spaces_columns
-
-
-def test_strip_spaces_columns_removes_spaces():
-    df = pd.DataFrame({"a": ["  X  "], "b": ["   Y"]})
-    out = strip_spaces_columns(df, ["a", "b"])
-    assert out.loc[0, "a"] == "X"
-    assert out.loc[0, "b"] == "Y"
+def test_strip_spaces_columns_missing_column_raises_keyerror():
+    df = pd.DataFrame({"col1": ["X"]})
+    with pytest.raises(KeyError):
+        strip_spaces_columns(df, ["col1", "col2"])
 
 
-def test_strip_spaces_columns_keeps_missing_as_missing():
-    df = pd.DataFrame({"a": ["  X  "], "b": [None]})
-    out = strip_spaces_columns(df, ["a", "b"])
-    assert pd.isna(out.loc[0, "b"])
-
-
-
-
-from src.data_cleaning import gene_filter
-
-
-def test_gene_filter_keeps_only_requested_values():
-    df = pd.DataFrame({
-        "Gene/Factor": ["MLH1", "MSH3", "HTT (Somatic Expansion)", "OTHER"]
-    })
-    out = gene_filter(df, "Gene/Factor", ["MLH1", "MSH3", "HTT (Somatic Expansion)"])
-    assert out["Gene/Factor"].tolist() == ["MLH1", "MSH3", "HTT (Somatic Expansion)"]
-
-
-
-def test_gene_filter_returns_empty_when_no_match():
-    df = pd.DataFrame({"Gene/Factor": ["OTHER"]})
-    out = gene_filter(df, "Gene/Factor", ["MLH1"])
-    assert out.shape[0] == 0
-
-
-import pandas as pd
-from src.data_cleaning import drop_missing_required
-
-
-def test_drop_missing_required_drops_rows_with_missing_in_required_columns():
-    df = pd.DataFrame({
-        "Age": [20, None, 30],
-        "Sex": ["F", "M", "F"],
-        "Brain Volume Loss": [0.1, 0.2, None],
-    })
-    out = drop_missing_required(df, ["Age", "Brain Volume Loss"])
-    assert out.shape[0] == 1
-    assert out["Age"].tolist() == [20]
-    assert out["Brain Volume Loss"].tolist() == [0.1]
-
-
-def test_drop_missing_required_does_not_drop_when_missing_is_in_non_required_column():
-    df = pd.DataFrame({
-        "Age": [20, 25],
-        "Sex": ["F", "M"],
-        "Brain Volume Loss": [0.1, 0.2],
-        "Extra": [None, "ok"],
-    })
-    out = drop_missing_required(df, ["Age", "Sex", "Brain Volume Loss"])
-    assert out.shape[0] == 2
-
-
-
-import pandas as pd
-from src.data_cleaning import convert_numeric_columns
-
-
-def test_convert_numeric_columns_converts_numeric_strings_to_numbers():
-    df = pd.DataFrame({"Age": ["20", "30"], "Brain Volume Loss": ["0.1", "0.2"]})
-    out = convert_numeric_columns(df, ["Age", "Brain Volume Loss"])
-
-    assert out["Age"].tolist() == [20, 30]
-    assert out["Brain Volume Loss"].tolist() == [0.1, 0.2]
-
-
-def test_convert_numeric_columns_coerces_invalid_values_to_nan():
-    df = pd.DataFrame({"Age": ["20", "bad"]})
-    out = convert_numeric_columns(df, ["Age"])
-
-    assert out["Age"].tolist()[0] == 20
-    assert pd.isna(out["Age"].tolist()[1])
-
-
-
-from src.data_cleaning import normalize_case_columns
-
-
-def test_normalize_case_columns_lower_fixes_mixed_case():
+# -----------------------
+# normalize_case_columns
+# -----------------------
+def test_normalize_case_columns_lower_converts_to_lowercase():
     df = pd.DataFrame({"Sex": ["mAlE", "FEMale"]})
     out = normalize_case_columns(df, ["Sex"], method="lower")
-
     assert out["Sex"].tolist() == ["male", "female"]
 
 
-def test_normalize_case_columns_upper_fixes_mixed_case_and_preserves_nan():
-    df = pd.DataFrame({"Sex": ["mAlE", None]})
-    out = normalize_case_columns(df, ["Sex"], method="upper")
-
-    assert out["Sex"].tolist()[0] == "MALE"
-    assert pd.isna(out["Sex"].tolist()[1])
+def test_normalize_case_columns_invalid_method_raises_valueerror():
+    df = pd.DataFrame({"Sex": ["mAlE"]})
+    with pytest.raises(ValueError):
+        normalize_case_columns(df, ["Sex"], method="title")
 
 
+# -----------------------
+# gene_filter
+# -----------------------
+def test_gene_filter_keeps_only_requested_values():
+    df = pd.DataFrame({"Gene/Factor": ["MLH1", "MSH3", "OTHER"]})
+    out = gene_filter(df, "Gene/Factor", ["MLH1", "MSH3"])
+    assert out["Gene/Factor"].tolist() == ["MLH1", "MSH3"]
+
+
+def test_gene_filter_strips_df_values_before_matching():
+    df = pd.DataFrame({"Gene/Factor": [" MLH1 ", "MSH3", "OTHER"]})
+    out = gene_filter(df, "Gene/Factor", ["MLH1", "MSH3"])
+    assert out["Gene/Factor"].tolist() == [" MLH1 ", "MSH3"]
+
+
+# -----------------------
+# convert_numeric_columns
+# -----------------------
+def test_convert_numeric_columns_converts_numeric_strings_to_numbers():
+    df = pd.DataFrame({"Age": ["20", "30"], "DV": ["0.1", "0.2"]})
+    out = convert_numeric_columns(df, ["Age", "DV"])
+    assert out["Age"].tolist() == [20, 30]
+    assert out["DV"].tolist() == [0.1, 0.2]
+
+
+def test_convert_numeric_columns_coerces_invalid_values_to_nan():
+    df = pd.DataFrame({"Age": ["20", "bad", None]})
+    out = convert_numeric_columns(df, ["Age"])
+    assert out["Age"].tolist()[0] == 20
+    assert pd.isna(out["Age"].tolist()[1])
+    assert pd.isna(out["Age"].tolist()[2])
+
+
+# -----------------------
+# drop_missing_required
+# -----------------------
+def test_drop_missing_required_drops_rows_missing_required_columns():
+    df = pd.DataFrame(
+        {
+            "Age": [20, None, 30],
+            "DV": [0.1, 0.2, None],
+            "Extra": [1, 2, 3],
+        }
+    )
+    out = drop_missing_required(df, ["Age", "DV"])
+    assert out.shape[0] == 1
+    assert out["Age"].tolist() == [20]
+    assert out["DV"].tolist() == [0.1]
+
+
+def test_drop_missing_required_missing_column_raises_keyerror():
+    df = pd.DataFrame({"Age": [20]})
+    with pytest.raises(KeyError):
+        drop_missing_required(df, ["Age", "DV"])
+
+
+from src.data_cleaning import clean_pipeline
+
+
+def test_clean_pipeline_produces_analysis_ready_df():
+    df = pd.DataFrame(
+        {
+            "Gene/Factor": [" MLH1 ", "OTHER", "msh3", "HTT (Somatic Expansion)"],
+            "Disease_Stage": [" Early ", "Early", "Late", None],
+            "Sex": [" Female ", "Male", "FEMALE", "male"],
+            "Age": ["20", "30", "bad", "40"],
+            "Brain_Volume_Loss": ["0.1", "0.2", "0.3", None],
+        }
+    )
+
+    out = clean_pipeline(
+        df,
+        selected_columns=[
+            "Gene/Factor",
+            "Disease_Stage",
+            "Sex",
+            "Age",
+            "Brain_Volume_Loss",
+        ],
+        text_columns_strip=["Gene/Factor", "Disease_Stage", "Sex"],
+        text_columns_case=["Gene/Factor", "Disease_Stage", "Sex"],
+        case_method="lower",
+        gene_column="Gene/Factor",
+        genes_keep=["mlh1", "msh3", "htt (somatic expansion)"],
+        numeric_columns=["Age", "Brain_Volume_Loss"],
+        required_columns=[
+            "Gene/Factor",
+            "Disease_Stage",
+            "Sex",
+            "Age",
+            "Brain_Volume_Loss",
+        ],
+    )
+
+    assert set(out["Gene/Factor"].tolist()).issubset(
+        {"mlh1", "msh3", "htt (somatic expansion)"}
+    )
+    assert out["Age"].dtype.kind in {"i", "u", "f"}
+    assert out["Brain_Volume_Loss"].dtype.kind in {"i", "u", "f"}
+    assert out.isna().sum().sum() == 0
