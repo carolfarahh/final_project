@@ -97,7 +97,7 @@ from statsmodels.formula.api import ols
 
 def check_normality_of_residuals_visual(df,DV,IV,Covariate,):
     model = ols(
-        f"Q({'DV'}) ~ C(Q({'IV'})) * Q({'Covariate'}))",
+        f"({'DV'}) ~ C(({'IV'})) * ({'Covariate'}))",
         data=df
     ).fit()
 
@@ -142,9 +142,9 @@ def check_vif(df):
     return pd.DataFrame(vifs)
 
 # 7) outliers points. 
-def check_influence_cooks_distance(df,DV,IV,Covariate,CV):
+def check_influence_cooks_distance(df,DV,IV,Covariate):
     model = ols(
-     f"Q({'DV'}) ~ C(Q({'IV'})) * Q({'Covariate'}) + C(Q({'CV'}))",
+     f"({'DV'}) ~ C(({'IV'})) * ({'Covariate'}))",
         data=df
     ).fit()
 
