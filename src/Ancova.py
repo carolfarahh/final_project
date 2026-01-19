@@ -64,9 +64,9 @@ def check_linearity_age_dv(df, dv="brain-volume-loss", cov="age", show_plot=True
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
-def check_homogeneity_of_slopes(df):
+def check_homogeneity_of_slopes(df,DV,IV,Covariate,CV):
     model = ols(
-        "Q('DV') ~ C(Q('IV')) * Q('Covariate') + C(Q('CV'))",
+        "Q({DV}) ~ C(Q({IV})) * Q({Covariate}) + C(Q({CV}))",
         data=df
     ).fit()
 
@@ -95,9 +95,9 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
-def check_normality_of_residuals_visual(df):
+def check_normality_of_residuals_visual(df,DV,IV,Covariate,CV):
     model = ols(
-        "Q('brain-volume-loss') ~ C(Q('disease stage')) + Q('age') + C(Q('gender'))",
+        "Q({DV}) ~ C(Q({IV})) * Q({Covariate}) + C(Q({CV}))",,
         data=df
     ).fit()
 
@@ -142,9 +142,9 @@ def check_vif(df):
     return pd.DataFrame(vifs)
 
 # 7) outliers points. 
-def check_influence_cooks_distance(df):
+def check_influence_cooks_distance(df,DV,IV,Covariate,CV):
     model = ols(
-        "Q('DV') ~ C(Q('IV')) + Q('Covariate') + C(Q('CV'))",
+     "Q({DV}) ~ C(Q({IV})) * Q({Covariate}) + C(Q({CV}))",
         data=df
     ).fit()
 
@@ -189,10 +189,10 @@ def load_and_filter_somatic(csv_path):
     return somatic_df
 
 
-def run_ancova(df):
+def run_ancova(df,DV,IV,Covariate,CV):
     # ANCOVA model
     model = ols(
-        "Q('DV') ~ C(Q('IV')) + Q('Covariate') + C(Q('CV'))",
+        "Q({DV}) ~ C(Q({IV})) * Q({Covariate}) + C(Q({CV}))",
         data=df
     ).fit()
 
