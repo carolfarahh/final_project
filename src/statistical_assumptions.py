@@ -149,3 +149,93 @@ def check_normality_of_residuals_visual(df,DV,IV,Covariate):
     plt.show()
 
     return {"n_resid": int(resid.shape[0])}
+
+import numpy as np
+
+def log_transform(
+    df,
+    column,
+    new_column=None,
+    offset="auto"
+):
+    """
+    Log-transform a column safely.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+    column : str
+        Column to transform
+    new_column : str or None
+        Name of transformed column (default: log_<column>)
+    offset : "auto" or float
+        Value added to make data positive before log
+
+    Returns
+    -------
+    df_out : pandas.DataFrame
+    offset_used : float
+    """
+    df_out = df.copy()
+
+    x = df_out[column].astype(float)
+
+    if offset == "auto":
+        min_val = x.min()
+        offset_used = abs(min_val) + 1 if min_val <= 0 else 0
+    else:
+        offset_used = float(offset)
+
+    transformed = np.log(x + offset_used)
+
+    if new_column is None:
+        new_column = f"log_{column}"
+
+    df_out[new_column] = transformed
+
+    return df_out, offset_used
+
+import numpy as np
+
+def sqrt_transform(
+    df,
+    column,
+    new_column=None,
+    offset="auto"
+):
+    """
+    Square-root transform a column safely.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+    column : str
+        Column to transform
+    new_column : str or None
+        Name of transformed column (default: sqrt_<column>)
+    offset : "auto" or float
+        Value added to make data non-negative
+
+    Returns
+    -------
+    df_out : pandas.DataFrame
+    offset_used : float
+    """
+    df_out = df.copy()
+
+    x = df_out[column].astype(float)
+
+    if offset == "auto":
+        min_val = x.min()
+        offset_used = abs(min_val) if min_val < 0 else 0
+    else:
+        offset_used = float(offset)
+
+    transformed = np.sqrt(x + offset_used)
+
+    if new_column is None:
+        new_column = f"sqrt_{column}"
+
+    df_out[new_column] = transformed
+
+    return df_out, offset_used

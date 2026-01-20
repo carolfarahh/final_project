@@ -61,16 +61,26 @@ def anova_model(df, dv, factor1, factor2, levene_test, check_interaction):
     if check_interaction == True: #defines which model to use
         # Fit OLS model(Ordinary Least Squares)
         model = ols(f'{dv} ~ C({factor1}) + C({factor2}) + C({factor1}):C({factor2})', data=df).fit() #two-way factorial model
+        if levene_test == "significant":
+            anova_table = anova_lm(model, typ=3, robust='hc3')  # HC3 = heteroscedasticity-consistent
+        else:
+            anova_table = anova_lm(model, typ=3)  # HC3 = heteroscedasticity-consistent
     else:
         model = ols( f'{dv} ~ C({factor1}) + C({factor2})', data=df).fit() #additive model
+        if levene_test == "significant":
+            anova_table = anova_lm(model, typ=2, robust='hc3')  # HC3 = heteroscedasticity-consistent
+        else:
+            anova_table = anova_lm(model, typ=2)  # HC3 = heteroscedasticity-consistent
 
-    if levene_test == "significant":
-    # ANOVA table using Type 2 sum of squares with robust covariance (Welch-style)
-        anova_table = anova_lm(model, typ=2, robust='hc3')  # HC3 = heteroscedasticity-consistent
-        return anova_table
-    elif levene_test == "insignificant":
-        anova_table = anova_lm(model, typ=2)  #Without HC3
-        return anova_table    
+
+
+    # if levene_test == "significant":
+    # # ANOVA table using Type 2 sum of squares with robust covariance (Welch-style)
+    #     anova_table = anova_lm(model, typ=3, robust='hc3')  # HC3 = heteroscedasticity-consistent
+    #     return anova_table
+    # elif levene_test == "insignificant":
+    #     anova_table = anova_lm(model, typ=2)  #Without HC3
+    return anova_table    
 
 # def simple_effects_tukey(df, dv, factor1, factor2, alpha=0.05, levine_test): #in case the interaction is significant, check simple effects
 
@@ -143,6 +153,7 @@ def run_ancova(data, dv, iv, covariates, levene_test):
     # Type II ANCOVA table
     if levene_test == "significant":
         model = model.get_robustcov_results(cov_type="HC3")
+
 
     ancova_table = sm.stats.anova_lm(model, typ=2)
 
