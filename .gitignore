@@ -4,15 +4,12 @@ __pycache__/
 *.pyc
 
 # Virtual env
+# Virtual env
 .venv/
 venv/
-Include/
-Lib/
-Scripts/
-share/
-pyvenv.cfg
 
-# Data (recommended)
+
+# Data
 Data/
 *.csv
 
