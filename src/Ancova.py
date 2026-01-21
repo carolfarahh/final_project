@@ -150,6 +150,97 @@ def check_normality_of_residuals_visual(df,DV,IV,Covariate,):   #checks if the r
     return {"n_resid": int(resid.shape[0])}
 
 
+import numpy as np
+
+def log_transform(                  
+    df,
+    column,
+    new_column=None,
+    offset="auto"
+):                      #applies a natural logarithm transformation to a numeric column.
+    """
+    Log-transform a column safely.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+    column : str
+        Column to transform
+    new_column : str or None
+        Name of transformed column (default: log_<column>)
+    offset : "auto" or float
+        Value added to make data positive before log
+
+    Returns
+    -------
+    df_out : pandas.DataFrame
+    offset_used : float
+    """
+    df_out = df.copy()
+
+    x = df_out[column].astype(float)
+
+    if offset == "auto":
+        min_val = x.min()
+        offset_used = abs(min_val) + 1 if min_val <= 0 else 0      # because log cannot take 0 or negative values the function automatically adds an offset if needed.
+    else:
+        offset_used = float(offset)
+
+    transformed = np.log(x + offset_used)
+
+    if new_column is None:
+        new_column = f"log_{column}"
+
+    df_out[new_column] = transformed
+
+    return df_out, offset_used  #log transformation used  when the DV is right-skewed(many low values and few large values) it compresses large values to make the distribution more normal.
+
+import numpy as np
+
+def sqrt_transform(
+    df,
+    column,
+    new_column=None,
+    offset="auto"
+):          #applies square-root transformation to a numeric column.
+    """
+    Square-root transform a column safely.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+    column : str
+        Column to transform
+    new_column : str or None
+        Name of transformed column (default: sqrt_<column>)
+    offset : "auto" or float
+        Value added to make data non-negative
+
+    Returns
+    -------
+    df_out : pandas.DataFrame
+    offset_used : float
+    """
+    df_out = df.copy()
+
+    x = df_out[column].astype(float)
+
+    if offset == "auto":
+        min_val = x.min()
+        offset_used = abs(min_val) if min_val < 0 else 0        #square-root dose not take negative values so if values are negative the function adds an offset.
+    else:
+        offset_used = float(offset)
+
+    transformed = np.sqrt(x + offset_used)
+
+    if new_column is None:
+        new_column = f"sqrt_{column}"
+
+    df_out[new_column] = transformed
+
+    return df_out, offset_used          #this transformation is useful for moderately skewed data and reduces the effect of large values(less aggressively than log transformation)
+
+
 #6) multicollinearity VIF between predictors.
 import numpy as np
 from statsmodels.stats.outliers_influence import variance_inflation_factor
