@@ -6,7 +6,7 @@ def load_and_filter_somatic(csv_path):
     df = pd.read_csv(csv_path)
     df.columns = df.columns.str.strip().str.lower()
 
-    required = ["brain-volume-loss", "disease stage", "age", "gender", "somatic expansion"]
+    required = ["brain_volume_loss", "disease_stage", "age", "gender", "somatic_expansion"]
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError(f"Missing columns: {missing}")
@@ -17,7 +17,7 @@ def load_and_filter_somatic(csv_path):
         raise ValueError("Somatic expansion filter returned 0 rows. Check column values in 'somatic expansion'.")
 
     # Clean key variables
-    som = som.dropna(subset=["brain-volume-loss", "disease stage", "age", "gender"]).copy()
+    som = som.dropna(subset=["brain_volume_loss", "disease_stage", "age", "gender"]).copy()
 
     return som
 
@@ -247,7 +247,7 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 def check_vif(df):  #checks multicollinearity, means that two or more predictors in the ANCOVA model are highly correlated with each other. 
     # Build design matrix like the model would 
-    X = pd.get_dummies(df[["disease stage", "age", "gender"]], drop_first=True) #convert CV into dummy variables so they can be used in regression.
+    X = pd.get_dummies(df[["disease_stage", "age", "gender"]], drop_first=True) #convert CV into dummy variables so they can be used in regression.
 
         #We calculate variance inflation factor(VIF) for each predictor.
     X = sm.add_constant(X)
@@ -295,13 +295,13 @@ def load_and_filter_somatic(csv_path):
     df = pd.read_csv(csv_path)
     df.columns = df.columns.str.strip().str.lower()
 
-    required = ["brain-volume-loss", "disease stage", "age", "gender", "somatic expansion"]
+    required = ["brain_volume_loss", "disease_stage", "age", "gender", "somatic_expansion"]
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError(f"Missing columns: {missing}")
 
     # Keep only somatic expansion patients (edit values if needed)
-    somatic_df = df[df["somatic expansion"].astype(str).str.strip().str.lower().isin(
+    somatic_df = df[df["somatic_expansion"].astype(str).str.strip().str.lower().isin(
         ["1", "true", "yes", "y"]
     )].copy()
 
@@ -309,7 +309,7 @@ def load_and_filter_somatic(csv_path):
         raise ValueError("No rows found for somatic expansion group. Check values in 'somatic expansion'.")
 
     # Drop missing values for the ANCOVA variables
-    somatic_df = somatic_df.dropna(subset=["brain-volume-loss", "disease stage", "age", "gender"]).copy()
+    somatic_df = somatic_df.dropna(subset=["brain_volume_loss", "disease_stage", "age", "gender"]).copy()
 
     return somatic_df
 
