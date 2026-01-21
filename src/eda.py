@@ -1,178 +1,131 @@
+from __future__ import annotations
+from typing import Any, Dict, List
 import pandas as pd
-import matplotlib.pyplot as plt
 
 
-def _ensure_columns_exist(df, columns):
-    missing = [c for c in columns if c not in df.columns]
-    if missing:
-        raise KeyError(f"Missing required columns: {missing}")
+def row_count_log() -> List[Dict[str, Any]]:
+    """Create an empty log to track row counts across notebook steps."""
+    return []
 
 
-def missing_summary(df, columns):
-    _ensure_columns_exist(df, columns)
-    n = len(df)
-    rows = []
-    for col in columns:
-        miss = int(df[col].isna().sum())
-        pct = (miss / n) * 100 if n > 0 else float("nan")
-        rows.append({"column": col, "missing_count": miss, "missing_percent": pct})
-    return pd.DataFrame(rows)
+def log_step(log: List[Dict[str, Any]], step: str, df: pd.DataFrame) -> None:
+    """Append step name and current row count."""
+    log.append({"step": step, "rows": int(len(df))})
 
 
-def group_counts(df, group_cols):
-    _ensure_columns_exist(df, group_cols)
-    out = (
-        df.groupby(list(group_cols), dropna=False)
-        .size()
-        .reset_index(name="count")
-        .sort_values("count", ascending=False)
-        .reset_index(drop=True)
-    )
+def log_to_df(log: List[Dict[str, Any]]) -> pd.DataFrame:
+    """Convert log into DataFrame and add percent remaining."""
+    out = pd.DataFrame(log)
+    if out.empty:
+        return out
+    first = out.loc[0, "rows"]
+    out["pct_remaining"] = (out["rows"] / first * 100) if first else 0.0
     return out
 
 
-def numeric_summary(df, columns):
-    _ensure_columns_exist(df, columns)
-    rows = []
-    for col in columns:
-        s = pd.to_numeric(df[col], errors="coerce")
-        rows.append(
-            {
-                "column": col,
-                "n": int(s.notna().sum()),
-                "mean": float(s.mean()) if s.notna().any() else float("nan"),
-                "std": float(s.std(ddof=1)) if s.notna().sum() > 1 else float("nan"),
-                "min": float(s.min()) if s.notna().any() else float("nan"),
-                "q1": float(s.quantile(0.25)) if s.notna().any() else float("nan"),
-                "median": float(s.median()) if s.notna().any() else float("nan"),
-                "q3": float(s.quantile(0.75)) if s.notna().any() else float("nan"),
-                "max": float(s.max()) if s.notna().any() else float("nan"),
-            }
-        )
-    return pd.DataFrame(rows)
+import pandas as pd
 
 
-def descriptives_by_groups(df, dv, group_cols, extra_means=None):
-    cols_needed = [dv, *group_cols]
-    if extra_means:
-        cols_needed.extend(list(extra_means))
-    _ensure_columns_exist(df, cols_needed)
+def missingness_table(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Missingness per column: count + percent.
+    Sorted by missing_pct descending.
+    """
+    total = len(df)
+    missing_count = df.isna().sum()
 
-    tmp = df.copy()
-    tmp[dv] = pd.to_numeric(tmp[dv], errors="coerce")
+    out = pd.DataFrame(
+        {
+            "missing_count": missing_count,
+            "missing_pct": (missing_count / total * 100) if total else 0.0,
+        }
+    ).sort_values("missing_pct", ascending=False)
 
-    agg = {
-        "n": (dv, lambda x: int(pd.to_numeric(x, errors="coerce").notna().sum())),
-        "mean": (dv, "mean"),
-        "std": (dv, "std"),
-        "median": (dv, "median"),
-        "min": (dv, "min"),
-        "max": (dv, "max"),
-    }
-
-    if extra_means:
-        for col in extra_means:
-            tmp[col] = pd.to_numeric(tmp[col], errors="coerce")
-            agg[f"mean_{col}"] = (col, "mean")
-
-    out = (
-        tmp.groupby(list(group_cols), dropna=False)
-        .agg(**agg)
-        .reset_index()
-        .sort_values(list(group_cols))
-        .reset_index(drop=True)
-    )
     return out
 
 
-def plot_boxplot_stage_gene(df, dv, stage_col, gene_col):
-    _ensure_columns_exist(df, [dv, stage_col, gene_col])
-    tmp = df.copy()
-    tmp[dv] = pd.to_numeric(tmp[dv], errors="coerce")
+def sample_for_plot(df: pd.DataFrame, n: int = 20000, random_state: int = 0) -> pd.DataFrame:
+    """
+    Sample up to n rows for plotting to keep notebooks fast.
+    Returns a copy. If df <= n, returns df.copy().
+    """
+    if n <= 0:
+        raise ValueError("n must be > 0")
 
-    stages = list(pd.Series(tmp[stage_col].dropna().unique()).astype(str))
-    genes = list(pd.Series(tmp[gene_col].dropna().unique()).astype(str))
+    if len(df) <= n:
+        return df.copy()
 
-    data = []
-    labels = []
-    for st in stages:
-        for g in genes:
-            vals = tmp.loc[
-                (tmp[stage_col].astype(str) == st) & (tmp[gene_col].astype(str) == g),
-                dv,
-            ].dropna()
-            data.append(vals.values)
-            labels.append(f"{st}\n{g}")
-
-    fig, ax = plt.subplots()
-    ax.boxplot(data, showfliers=True)
-    ax.set_xticks(range(1, len(labels) + 1))
-    ax.set_xticklabels(labels, rotation=90)
-    ax.set_ylabel(dv)
-    ax.set_title(f"{dv} by {stage_col} and {gene_col}")
-    fig.tight_layout()
-    return ax
+    return df.sample(n=n, random_state=random_state).copy()
 
 
-def plot_means_lines_stage_gene(df, dv, stage_col, gene_col):
-    _ensure_columns_exist(df, [dv, stage_col, gene_col])
-    tmp = df.copy()
-    tmp[dv] = pd.to_numeric(tmp[dv], errors="coerce")
+import pandas as pd
 
-    means = (
-        tmp.groupby([stage_col, gene_col], dropna=False)[dv]
-        .mean()
-        .reset_index(name="mean_dv")
+
+def group_descriptives(df: pd.DataFrame, group_col: str, dv_col: str) -> pd.DataFrame:
+    """
+    Descriptive stats of dv_col by group_col.
+    Returns: n, mean, median, std, min, max, q1, q3, iqr
+    """
+    g = df.groupby(group_col, dropna=False)[dv_col]
+
+    out = g.agg(
+        n="count",
+        mean="mean",
+        median="median",
+        std="std",
+        min="min",
+        max="max",
+        q1=lambda s: s.quantile(0.25),
+        q3=lambda s: s.quantile(0.75),
     )
 
-    stages = list(pd.Series(means[stage_col].dropna().unique()).astype(str))
-    genes = list(pd.Series(means[gene_col].dropna().unique()).astype(str))
-
-    fig, ax = plt.subplots()
-    x = list(range(len(stages)))
-
-    for g in genes:
-        y = []
-        for st in stages:
-            m = means.loc[
-                (means[stage_col].astype(str) == st) & (means[gene_col].astype(str) == g),
-                "mean_dv",
-            ]
-            y.append(float(m.iloc[0]) if len(m) else float("nan"))
-        ax.plot(x, y, marker="o", label=str(g))
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(stages)
-    ax.set_xlabel(stage_col)
-    ax.set_ylabel(f"Mean {dv}")
-    ax.set_title(f"Mean {dv} across {stage_col} (lines = {gene_col})")
-    ax.legend()
-    fig.tight_layout()
-    return ax
+    out["iqr"] = out["q3"] - out["q1"]
+    return out
 
 
-def plot_scatter_age_vs_dv(df, age_col, dv, hue_col=None):
-    cols = [age_col, dv] + ([hue_col] if hue_col else [])
-    _ensure_columns_exist(df, cols)
+def sex_by_stage_table(
+    df: pd.DataFrame,
+    stage_col: str = "Disease_Stage",
+    sex_col: str = "Sex",
+    normalize: bool = False,
+) -> pd.DataFrame:
+    """
+    Crosstab of Sex by Disease_Stage.
+    If normalize=True, returns row-wise proportions.
+    """
+    if normalize:
+        return pd.crosstab(df[stage_col], df[sex_col], normalize="index")
+    return pd.crosstab(df[stage_col], df[sex_col])
 
-    tmp = df.copy()
-    tmp[age_col] = pd.to_numeric(tmp[age_col], errors="coerce")
-    tmp[dv] = pd.to_numeric(tmp[dv], errors="coerce")
-    tmp = tmp.dropna(subset=[age_col, dv])
 
-    fig, ax = plt.subplots()
+def age_by_stage_summary(
+    df: pd.DataFrame,
+    stage_col: str = "Disease_Stage",
+    age_col: str = "Age",
+) -> pd.DataFrame:
+    """
+    Descriptive stats of Age by Disease_Stage.
+    """
+    return group_descriptives(df, stage_col, age_col)
 
-    if hue_col is None:
-        ax.scatter(tmp[age_col], tmp[dv], s=10)
-    else:
-        cats = tmp[hue_col].astype(str)
-        for cat in pd.unique(cats):
-            sub = tmp.loc[cats == cat]
-            ax.scatter(sub[age_col], sub[dv], s=10, label=cat)
-        ax.legend()
 
-    ax.set_xlabel(age_col)
-    ax.set_ylabel(dv)
-    ax.set_title(f"{dv} vs {age_col}" + (f" (by {hue_col})" if hue_col else ""))
-    fig.tight_layout()
-    return ax
+from typing import Sequence
+import pandas as pd
+
+
+def assert_filtered_gene_values(
+    df: pd.DataFrame,
+    gene_col: str,
+    allowed_values: Sequence[str],
+) -> None:
+    """
+    Sanity check: ensure df[gene_col] contains only allowed_values.
+    Intended to be used once after filtering (no plotting/grouping).
+    """
+    present = pd.Series(df[gene_col].dropna().unique()).astype(str).tolist()
+    present_set = set(present)
+    allowed_set = set([str(x) for x in allowed_values])
+
+    extras = sorted(list(present_set - allowed_set))
+    if extras:
+        raise ValueError(f"Unexpected values in {gene_col}: {extras}")
