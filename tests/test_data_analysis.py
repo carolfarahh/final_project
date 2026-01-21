@@ -145,6 +145,10 @@ def test_simple_effects():
 
     print("Simple effects function passed validation!")
 
+
+from src.statistical_analysis import simple_effects_tukey
+print(test_simple_effects)
+
 import pandas as pd
 import pingouin as pg
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
