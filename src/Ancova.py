@@ -22,32 +22,32 @@ def load_and_filter_somatic(csv_path):
     return som
 
 # 1) independence of observation 
-def check_independence_duplicates(df, id_col="participant_id"):
+def check_independence_duplicates(df, id_col="participant_id"): # This step checks the ANCOVA assumption that each observation is independent (each row = one unique participant).
     id_col = id_col.strip().lower()
     if id_col not in df.columns:
         raise ValueError(f"Column '{id_col}' not found. If you don’t have IDs, independence is judged by study design.")
     dup_ids = df[df.duplicated(subset=[id_col], keep=False)].sort_values(id_col)
-    return dup_ids  # empty = good sign (no repeats)
+    return dup_ids  # the function goes to the id_column and check if we have duplicates and add the to list, if the list came out empty that means we do not have duplicates .
 
 # 2) linearity between covariate and DV (WITH VISUALIZATION)
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
-def check_linearity_age_dv(df, dv="brain-volume-loss", cov="age", show_plot=True):
+def check_linearity_age_dv(df, dv="brain-volume-loss", cov="age", show_plot=True):     #this step check the ANCOVA assumption that the relationship between the covariate and the DV is linear.
     # numeric arrays
     x = df[cov].astype(float).values
     y = df[dv].astype(float).values
 
     # Pearson correlation (numeric check)
-    r, p = pearsonr(x, y)
+    r, p = pearsonr(x, y)  #calculate the pearson correlation coefficient (r) and its p-value, to give statistical indication of linear relationship. 
 
     # Visualization (scatter + best-fit line)
+    # we use scatter plot to show age in x-axis and Brain Volume Loss in the Y-axis if the dots in the scatter plots are roughly following a straight-line pattern, the linearity assumption is valid.
     if show_plot:
         plt.figure()
         plt.scatter(x, y, alpha=0.7)
-
-        # best-fit line
+        #best fit line
         m, b = np.polyfit(x, y, 1)
         x_line = np.linspace(x.min(), x.max(), 200)
         plt.plot(x_line, m * x_line + b)
@@ -64,19 +64,18 @@ def check_linearity_age_dv(df, dv="brain-volume-loss", cov="age", show_plot=True
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
-def check_homogeneity_of_slopes(df,DV,IV,Covariate,):
+def check_homogeneity_of_slopes(df,DV,IV,Covariate,):   #checks the ANCOVA assumption that the relationship between the covariate and the DV is the same across all levels of IV. 
     model = ols(
-        f"Q({'DV'}) ~ C(Q({'IV'})) * Q({'Covariate'})))",
+        f"Q({'DV'}) ~ C(Q({'IV'})) * Q({'Covariate'})))",   # model that includes an interaction term between  the covariate and the group factor(stage*age)
         data=df
     ).fit()
 
-    table = sm.stats.anova_lm(model, typ=2)
-    # Key row to check: C(Q('disease stage')):Q('age')
+    table = sm.stats.anova_lm(model, typ=2) #creates  an ANOVA from the fitted regression modle
+    
     return table
 
 # 4) homogeneity of variances.
-def levene_test(df, dependent_variable, group_variable, center="mean", dropna=True, min_group_size=2):
-
+def levene_test(df, dependent_variable, group_variable, center="mean", dropna=True, min_group_size=2):    # checks that the variance of DV is similar across all groups (disease stages).
     if dependent_variable not in df.columns:
         raise KeyError(f"Missing column: {dependent_variable}")
     if group_variable not in df.columns:
@@ -126,7 +125,7 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
-def check_normality_of_residuals_visual(df,DV,IV,Covariate,):
+def check_normality_of_residuals_visual(df,DV,IV,Covariate,):   #checks if the residuals(prediction errors) are approximately normally distributed.
     model = ols(
         f"({'DV'}) ~ C(({'IV'})) * ({'Covariate'}))",
         data=df
@@ -147,7 +146,7 @@ def check_normality_of_residuals_visual(df,DV,IV,Covariate,):
     sm.qqplot(resid, line="45")
     plt.title("Q-Q Plot of Residuals")
     plt.show()
-
+# We used Histogram and Q-Q plot because we have a large data set so we cant use normal methods (shapiro-wilk). 
     return {"n_resid": int(resid.shape[0])}
 
 
@@ -155,11 +154,11 @@ def check_normality_of_residuals_visual(df,DV,IV,Covariate,):
 import numpy as np
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
-def check_vif(df):
-    # Build design matrix like the model would (no DV here)
-    X = pd.get_dummies(df[["disease stage", "age", "gender"]], drop_first=True)
+def check_vif(df):  #checks multicollinearity, means that two or more predictors in the ANCOVA model are highly correlated with each other. 
+    # Build design matrix like the model would 
+    X = pd.get_dummies(df[["disease stage", "age", "gender"]], drop_first=True) #convert CV into dummy variables so they can be used in regression.
 
-    # Add intercept
+        #We calculate variance inflation factor(VIF) for each predictor.
     X = sm.add_constant(X)
 
     vifs = []
@@ -175,22 +174,22 @@ def check_vif(df):
 # 7) outliers points. 
 from statsmodels.formula.api import ols
 
-def check_influence_cooks_distance(df, DV, IV, Covariate, CV=None):
+def check_influence_cooks_distance(df, DV, IV, Covariate, CV=None): # this step checks whether there are influential participants that have strong effect on the ANCOVA results.
     if CV is None:
         formula = f"{DV} ~ C({IV}) + {Covariate}"
     else:
         formula = f"{DV} ~ C({IV}) + {Covariate} + C({CV})"
-
+        #builds an ANCOVA-style regression model using the dv and predictors and fits the model to the dat. 
     model = ols(formula, data=df).fit()
 
-    infl = model.get_influence()
-    cooks = infl.cooks_distance[0]
+    infl = model.get_influence()    # calculates cook's distance for every participant.
+    cooks = infl.cooks_distance[0]  # adds cook's distance as a new column to the dataset.
 
     out = df.copy()
     out["cooks_distance"] = cooks
 
     threshold = 4 / len(out)
-    influential = out[out["cooks_distance"] > threshold].sort_values("cooks_distance", ascending=False)
+    influential = out[out["cooks_distance"] > threshold].sort_values("cooks_distance", ascending=False) # identifies influential participants by selecting rows where cook's distance is greater than the threshold and then sorts the flagged participants from the highest distance to the lowest.
 
     return {"threshold": float(threshold), "influential_rows": influential}
 
