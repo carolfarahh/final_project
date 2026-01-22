@@ -197,48 +197,6 @@ def log_transform(
 
 import numpy as np
 
-def sqrt_transform(
-    df,
-    column,
-    new_column=None,
-    offset="auto"
-):          #applies square-root transformation to a numeric column.
-    """
-    Square-root transform a column safely.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-    column : str
-        Column to transform
-    new_column : str or None
-        Name of transformed column (default: sqrt_<column>)
-    offset : "auto" or float
-        Value added to make data non-negative
-
-    Returns
-    -------
-    df_out : pandas.DataFrame
-    offset_used : float
-    """
-    df_out = df.copy()
-
-    x = df_out[column].astype(float)
-
-    if offset == "auto":
-        min_val = x.min()
-        offset_used = abs(min_val) if min_val < 0 else 0        #square-root dose not take negative values so if values are negative the function adds an offset.
-    else:
-        offset_used = float(offset)
-
-    transformed = np.sqrt(x + offset_used)
-
-    if new_column is None:
-        new_column = f"sqrt_{column}"
-
-    df_out[new_column] = transformed
-
-    return df_out, offset_used          #this transformation is useful for moderately skewed data and reduces the effect of large values(less aggressively than log transformation)
 
 
 #6) multicollinearity VIF between predictors.
@@ -265,63 +223,37 @@ def check_vif(df):  #checks multicollinearity, means that two or more predictors
 # 7) outliers points. 
 from statsmodels.formula.api import ols
 
-def check_influence_cooks_distance(df, DV, IV, Covariate, CV=None): # this step checks whether there are influential participants that have strong effect on the ANCOVA results.
+def remove_influential_by_cooks(df, DV, IV, Covariate, CV=None):
+  
+
+    # Build formula
     if CV is None:
         formula = f"{DV} ~ C({IV}) + {Covariate}"
     else:
         formula = f"{DV} ~ C({IV}) + {Covariate} + C({CV})"
-        #builds an ANCOVA-style regression model using the dv and predictors and fits the model to the dat. 
+
+    # Fit model
     model = ols(formula, data=df).fit()
 
-    infl = model.get_influence()    # calculates cook's distance for every participant.
-    cooks = infl.cooks_distance[0]  # adds cook's distance as a new column to the dataset.
+    # Cook's distance
+    infl = model.get_influence()
+    cooks = infl.cooks_distance[0]
 
     out = df.copy()
     out["cooks_distance"] = cooks
 
+    # Threshold
     threshold = 4 / len(out)
-    influential = out[out["cooks_distance"] > threshold].sort_values("cooks_distance", ascending=False) # identifies influential participants by selecting rows where cook's distance is greater than the threshold and then sorts the flagged participants from the highest distance to the lowest.
 
-    return {"threshold": float(threshold), "influential_rows": influential}
+    # Influential rows (to remove)
+    influential_rows = out[out["cooks_distance"] > threshold].copy()
 
+    # Cleaned dataset (keep only non-influential)
+    cleaned_df = out[out["cooks_distance"] <= threshold].drop(columns=["cooks_distance"]).copy()
 
-# ANCOVA TEST.
-import pandas as pd
-import statsmodels.api as sm
-from statsmodels.formula.api import ols
-
-
-def load_and_filter_somatic(csv_path):
-    df = pd.read_csv(csv_path)
-    df.columns = df.columns.str.strip().str.lower()
-
-    required = ["brain_volume_loss", "disease_stage", "age", "gender", "somatic_expansion"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise ValueError(f"Missing columns: {missing}")
-
-    # Keep only somatic expansion patients (edit values if needed)
-    somatic_df = df[df["somatic_expansion"].astype(str).str.strip().str.lower().isin(
-        ["1", "true", "yes", "y"]
-    )].copy()
-
-    if somatic_df.empty:
-        raise ValueError("No rows found for somatic expansion group. Check values in 'somatic expansion'.")
-
-    # Drop missing values for the ANCOVA variables
-    somatic_df = somatic_df.dropna(subset=["brain_volume_loss", "disease_stage", "age", "gender"]).copy()
-
-    return somatic_df
+    return cleaned_df, influential_rows, float(threshold)
 
 
-def run_ancova(df,DV,IV,Covariate,CV):
-    # ANCOVA model
-    model = ols(
-      f"Q({'DV'}) ~ C(Q({'IV'})) * Q({'Covariate'}) + C(Q({'CV'}))",
-        data=df
-    ).fit()
 
-    # ANCOVA table
-    ancova_table = sm.stats.anova_lm(model, typ=2)
 
     
