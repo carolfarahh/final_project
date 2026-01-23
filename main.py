@@ -18,14 +18,15 @@ sub_df = normalize_case_columns(sub_df, columns= ["Gene/Factor", "Disease_Stage"
 sub_df = gene_filter(sub_df, "Gene/Factor", values_list= ["mlh1", "msh3", "htt (somatic expansion)"])
 sub_df = drop_missing_required(sub_df, columns_list)
 clean_df, removed_rows, threshold= check_influence_cooks_distance(sub_df, "Brain_Volume_Loss", "Age", "Sex")
- 
+
  #Add logging
 
 
 #EDA 
 
+
 #Assumptions
-from src.statistical_assumptions import check_independence_duplicates, plot_ancova_linearity, drop_duplicate_subjects
+from src.statistical_assumptions import check_independence_duplicates, plot_ancova_linearity, drop_duplicate_subjects, levene_test
 # Independence of variables assumption
 
 independence_test = check_independence_duplicates(sub_df, "Patient_ID")
@@ -39,18 +40,11 @@ else:
 
 #Linearity
 linearity_check = check_linearity_age_dv(df, dv="Brain_Volume_Loss", cov="Age", show_plot=True)
-while True:
-    transform_dataset = input("Does dataset require transformation? (yes/no): ").strip().lower()
-    
-    if transform_dataset in {"yes", "no"}:
-        break
-    else:
-        print("Please enter 'yes' or 'no'.")
+linearity_check_p_value = linearity_check["p_value"]
 
-    if transform_dataset == "yes":
-    clean_df = log_transform(clean_df, "Brain_Volume_Loss", new_column = "Brain_Volume_Loss") #replaces values with new values after transformation
-    clean_df = log_transform(clean_df, "Age", new_column = "Age")
-    ancova_linearity_graphs = plot_ancova_linearity(sub_df, dv="Brain_Volume_Loss", iv="Disease_Stage", cov="Age")
+# Homogeneity of Variance (Homoscedasticity)
+
+levene_test_ANCOVA = 
 
 
 # Linearity of residuals dataset assumption
@@ -81,6 +75,7 @@ if p_val_homogeneity_of_slopes > 0.05:
 
 else:
     print("The effect of the covariate Age differs depending on the level of IV Disease_Stage.\n Conducting moderated regression instead")
+
 
 
 

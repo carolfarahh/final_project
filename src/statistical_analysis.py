@@ -24,6 +24,7 @@ def factor_categorical(df, factor1, factor2):
 
 
 
+
 #TODO: TWO_WAY_ANOVA homogenous variance and welch
 def anova_model(df, dv, factor1, factor2, levene_test, check_interaction, alpha=0.05):
 
@@ -113,27 +114,80 @@ def posthoc_main_effect(df,dv,factor,main_effect_p,levene_test,alpha=0.05):
         return pg.pairwise_gameshowell(data=df,dv=dv,between=factor)
     
 #TODO: ANCOVA
-def run_ancova(data, dv, iv, covariate, levene_test, alpha=0.05):
-    
-    # Fit model
-    model = smf.ols(f"{dv} ~ C({iv}) + {covariate}", data=data).fit()
-    
-    # Variance adjustment
+
+#Adjusted quadratic model:
+
+def quadratic_model_adjustment(df, dv, iv,covariate):
+    df = df.copy()
+
+    # Center the covariate (VERY important for stability)
+    cov_c = f"{covariate}_c"
+    cov_c_sq = f"{covariate}_c_sq"
+
+    df[cov_c] = df[covariate] - df[covariate].mean()
+    df[cov_c_sq] = df[cov_c] ** 2
+    model = ols(f"{dv} ~ C({iv}) + {cov_c} + {cov_c_sq}", data=df).fit()
+
+    return model
+
+
+
+# def run_ancova(data, dv, iv, covariate, levene_test, alpha=0.05, linearity_p_value):
+#     if linearity_p_value < 0.05:
+#         # Fit model
+#         model = smf.ols(f"{dv} ~ C({iv}) + {covariate}", data=data).fit()
+#     else:
+#         model = quadratic_model_adjustment(data, dv, iv, covariate)
+#         # Variance adjustment
+#         if levene_test < alpha:
+#             model = model.get_robustcov_results(cov_type="HC3")
+#             print("Running ANCOVA adjusted for unequal variance")
+#         else:
+#             print(f"Equal variances assumed (Levene p = {levene_test:.3f}).\n")
+#             print("Running ANCOVA test")
+
+        
+#     #Run ANCOVA test
+#     ancova_table = sm.stats.anova_lm(model, typ=2)
+
+#     # Calculate partial eta squared
+#     ancova_table["partial_eta_sq"] = (ancova_table["sum_sq"] /(ancova_table["sum_sq"] + ancova_table.loc["Residual", "sum_sq"]))
+
+
+#     anova_table = sm.stats.anova_lm(model, typ=2)
+        
+#     return model, ancova_table
+
+def run_ancova(data, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.05):
+
+    # If linearity is violated → use quadratic model
+    if linearity_p_value < alpha:
+        model = quadratic_model_adjustment(data, dv, iv, covariate)
+        model_type = "Quadratic ANCOVA"
+        
+    else:
+        model = smf.ols(f"{dv} ~ C({iv}) + {covariate}", data=data).fit()
+        model_type = "Linear ANCOVA"
+
+
+    # Variance adjustment (apply to BOTH models)
     if levene_test < alpha:
         model = model.get_robustcov_results(cov_type="HC3")
-        print("Running ANCOVA adjusted for unequal variance")
+        print(f"Running {model_type} using HC3 robust SEs")
     else:
-        print(f"Equal variances assumed (Levene p = {levene_test:.3f}).\n")
-        print("Running ANCOVA test")
+        print(f"{model_type} with equal variances assumed")
 
-    
-    #Run ANCOVA test
+    # ANCOVA table
     ancova_table = sm.stats.anova_lm(model, typ=2)
 
-    # Calculate partial eta squared
-    ancova_table["partial_eta_sq"] = (ancova_table["sum_sq"] /(ancova_table["sum_sq"] + ancova_table.loc["Residual", "sum_sq"]))
-    
+    # Partial eta squared
+    ancova_table["partial_eta_sq"] = (
+        ancova_table["sum_sq"] /
+        (ancova_table["sum_sq"] + ancova_table.loc["Residual", "sum_sq"])
+    )
+
     return model, ancova_table
+
 
 def run_ancova_with_statsmodels_posthoc(data, dv, iv, covariate, alpha=0.05):
     #Fit the model (using C() to ensure IV is categorical)

@@ -64,6 +64,30 @@ def check_linearity_age_dv(df, dv="Brain_Volume_Loss", cov="Age", show_plot=True
 
     return {"pearson_r": float(r), "p_value": float(p)}
 
+def run_quadratic_ancova(df, dv, iv, covariate):
+    """
+    Fits an ANCOVA model with a quadratic covariate:
+    DV ~ IV + covariate + covariate^2
+    """
+
+    df = df.copy()
+
+    # Center the covariate (VERY important for stability)
+    cov_c = f"{covariate}_c"
+    cov_c_sq = f"{covariate}_c_sq"
+
+    df[cov_c] = df[covariate] - df[covariate].mean()
+    df[cov_c_sq] = df[cov_c] ** 2
+
+    formula = f"{dv} ~ C({iv}) + {cov_c} + {cov_c_sq}"
+
+    model = ols(formula, data=df).fit()
+
+    anova_table = sm.stats.anova_lm(model, typ=2)
+
+    return model, anova_table
+
+
 import statsmodels.api as sm
 
 
@@ -77,49 +101,62 @@ def check_homogeneity_of_slopes(df,DV,IV,Covariate):
     # Key row to check: C(Q('disease stage')):Q('age')
     return table
 
-def levene_test(df, dependent_variable, group_variable, center="mean", dropna=True, min_group_size=2):
+# def levene_test(df, dependent_variable, group_variable, center="mean", dropna=True, min_group_size=2):
 
-    if dependent_variable not in df.columns:
-        raise KeyError(f"Missing column: {dependent_variable}")
-    if group_variable not in df.columns:
-        raise KeyError(f"Missing column: {group_variable}")
+#     if dependent_variable not in df.columns:
+#         raise KeyError(f"Missing column: {dependent_variable}")
+#     if group_variable not in df.columns:
+#         raise KeyError(f"Missing column: {group_variable}")
 
-    if center not in {"median", "mean", "trimmed"}:
-        raise ValueError("center must be one of: 'median', 'mean', 'trimmed'")
+#     if center not in {"median", "mean", "trimmed"}:
+#         raise ValueError("center must be one of: 'median', 'mean', 'trimmed'")
 
-    y = df[dependent_variable]
-    g = df[group_variable]
+#     y = df[dependent_variable]
+#     g = df[group_variable]
 
-    if dropna:
-        mask = y.notna() & g.notna()
-        y = y[mask]
-        g = g[mask]
+#     if dropna:
+#         mask = y.notna() & g.notna()
+#         y = y[mask]
+#         g = g[mask]
 
-    y_num = pd.to_numeric(y, errors="coerce")
-    if y_num.isna().any():
-        raise ValueError("dependent_variable contains non-numeric values after conversion")
+#     y_num = pd.to_numeric(y, errors="coerce")
+#     if y_num.isna().any():
+#         raise ValueError("dependent_variable contains non-numeric values after conversion")
 
-    group_sizes = g.value_counts()
-    if group_sizes.shape[0] < 2:
-        raise ValueError("group_variable must have at least 2 groups")
+#     group_sizes = g.value_counts()
+#     if group_sizes.shape[0] < 2:
+#         raise ValueError("group_variable must have at least 2 groups")
 
-    too_small = group_sizes[group_sizes < min_group_size]
-    if not too_small.empty:
-        raise ValueError(f"Some groups have fewer than {min_group_size} observations: {too_small.to_dict()}")
+#     too_small = group_sizes[group_sizes < min_group_size]
+#     if not too_small.empty:
+#         raise ValueError(f"Some groups have fewer than {min_group_size} observations: {too_small.to_dict()}")
 
-    grouped = [y_num[g == level].to_numpy() for level in group_sizes.index]
-    stat, pval = levene(*grouped, center=center)
+#     grouped = [y_num[g == level].to_numpy() for level in group_sizes.index]
+#     stat, pval = levene(*grouped, center=center)
 
-    return pd.DataFrame(
-        [{
-            "test": "levene",
-            "center": center,
-            "stat": float(stat),
-            "pval": float(pval),
-            "n_groups": int(group_sizes.shape[0]),
-            "group_sizes": group_sizes.to_dict(),
-        }]
-    )
+#     return pd.DataFrame(
+#         [{
+#             "test": "levene",
+#             "center": center,
+#             "stat": float(stat),
+#             "pval": float(pval),
+#             "n_groups": int(group_sizes.shape[0]),
+#             "group_sizes": group_sizes.to_dict(),
+#         }]
+#     )
+
+def check_homogeneity_of_variance_levene(df, dv, iv):
+    iv = []
+    for _, g in df.groupby(iv):
+        vals = g[dv].dropna().astype(float).values
+        if len(vals) > 0:
+            groups.append(vals)
+
+    if len(groups) < 2:
+        raise ValueError("Need at least 2 groups with data for Levene’s test.")
+
+    stat, p = levene(*iv, center="median")
+    return {"levene_stat": float(stat), "p_value": float(p)}
 
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
