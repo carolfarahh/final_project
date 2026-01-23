@@ -1,56 +1,97 @@
 from __future__ import annotations
-from typing import Any, Dict, List
+
+from typing import Any, Dict, List, Optional
+
 import pandas as pd
 
 
+# ============================================================
+# Row-count logging utilities (useful to document filtering steps)
+# ============================================================
 def row_count_log() -> List[Dict[str, Any]]:
-    """Create an empty log to track row counts across notebook steps."""
+    """Create an empty log container to track row counts across steps."""
     return []
 
 
 def log_step(log: List[Dict[str, Any]], step: str, df: pd.DataFrame) -> None:
-    """Append step name and current row count."""
-    log.append({"step": step, "rows": int(len(df))})
+    """
+    Append one step to the log.
+
+    Stores:
+      - step: step name
+      - rows: number of rows in df
+      - pct_remaining: % of rows relative to the FIRST step in the log
+    """
+    if not isinstance(log, list):
+        raise TypeError("log must be a list returned by row_count_log()")
+
+    rows = int(len(df))
+
+    # First step becomes the baseline (100%)
+    if len(log) == 0:
+        base_rows = rows
+        log.append(
+            {"step": step, "rows": rows, "pct_remaining": 100.0, "_base_rows": base_rows}
+        )
+        return
+
+    base_rows = int(log[0].get("_base_rows", log[0].get("rows", 0)))
+    pct_remaining = 0.0 if base_rows == 0 else (rows / base_rows) * 100.0
+
+    # Keep the baseline stored in each record to avoid relying on external state
+    log.append(
+        {"step": step, "rows": rows, "pct_remaining": pct_remaining, "_base_rows": base_rows}
+    )
 
 
 def log_to_df(log: List[Dict[str, Any]]) -> pd.DataFrame:
-    """Convert log into DataFrame and add percent remaining."""
+    """
+    Convert the log list into a clean DataFrame.
+
+    We remove any internal helper keys (like _base_rows).
+    """
     out = pd.DataFrame(log)
     if out.empty:
-        return out
-    first = out.loc[0, "rows"]
-    out["pct_remaining"] = (out["rows"] / first * 100) if first else 0.0
-    return out
+        return pd.DataFrame(columns=["step", "rows", "pct_remaining"])
+
+    if "_base_rows" in out.columns:
+        out = out.drop(columns=["_base_rows"])
+
+    return out[["step", "rows", "pct_remaining"]]
 
 
-import pandas as pd
-
-
+# ============================================================
+# Missingness + sampling helpers (EDA-friendly)
+# ============================================================
 def missingness_table(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Missingness per column: count + percent.
-    Sorted by missing_pct descending.
+    Return missingness per column.
+
+    Output:
+      index: column names
+      columns: missing_count, missing_pct
     """
     total = len(df)
-    missing_count = df.isna().sum()
+    missing = df.isna().sum()
+    missing_pct = (missing / total) * 100 if total > 0 else missing * 0
 
-    out = pd.DataFrame(
-        {
-            "missing_count": missing_count,
-            "missing_pct": (missing_count / total * 100) if total else 0.0,
-        }
-    ).sort_values("missing_pct", ascending=False)
-
-    return out
+    out = pd.DataFrame({"missing_count": missing, "missing_pct": missing_pct})
+    out.index.name = "column"
+    return out.sort_values("missing_count", ascending=False)
 
 
-def sample_for_plot(df: pd.DataFrame, n: int = 20000, random_state: int = 0) -> pd.DataFrame:
+def sample_for_plot(
+    df: pd.DataFrame, n: int = 2000, random_state: Optional[int] = None
+) -> pd.DataFrame:
     """
-    Sample up to n rows for plotting to keep notebooks fast.
-    Returns a copy. If df <= n, returns df.copy().
+    Sample up to n rows for plotting (keeps plots responsive on large data).
+
+    Rules:
+      - If len(df) <= n: return df.copy()
+      - If n <= 0: raise ValueError
     """
     if n <= 0:
-        raise ValueError("n must be > 0")
+        raise ValueError("n must be a positive integer")
 
     if len(df) <= n:
         return df.copy()
@@ -58,69 +99,79 @@ def sample_for_plot(df: pd.DataFrame, n: int = 20000, random_state: int = 0) -> 
     return df.sample(n=n, random_state=random_state).copy()
 
 
-import pandas as pd
-
-
-def group_descriptives(df: pd.DataFrame, group_col: str, dv_col: str) -> pd.DataFrame:
+# ============================================================
+# Group descriptives (core EDA summaries)
+# ============================================================
+def group_descriptives(
+    df: pd.DataFrame, group_col: str, value_col: str, dropna: bool = True
+) -> pd.DataFrame:
     """
-    Descriptive stats of dv_col by group_col.
-    Returns: n, mean, median, std, min, max, q1, q3, iqr
-    """
-    g = df.groupby(group_col, dropna=False)[dv_col]
+    Compute descriptive stats of a numeric column per group.
 
-    out = g.agg(
-        n="count",
-        mean="mean",
-        median="median",
-        std="std",
-        min="min",
-        max="max",
-        q1=lambda s: s.quantile(0.25),
-        q3=lambda s: s.quantile(0.75),
+    Output index = group values.
+    Output columns: n, mean, median, iqr
+    """
+    sub = df[[group_col, value_col]].copy()
+
+    if dropna:
+        sub = sub.dropna(subset=[group_col, value_col])
+
+    # Force numeric conversion for the value column
+    sub[value_col] = pd.to_numeric(sub[value_col], errors="coerce")
+
+    if dropna:
+        sub = sub.dropna(subset=[value_col])
+
+    def _iqr(s: pd.Series) -> float:
+        # Interquartile range = Q3 - Q1
+        return float(s.quantile(0.75) - s.quantile(0.25))
+
+    g = sub.groupby(group_col)[value_col]
+
+    out = pd.DataFrame(
+        {
+            "n": g.size(),
+            "mean": g.mean(),
+            "median": g.median(),
+            "iqr": g.apply(_iqr),
+        }
     )
-
-    out["iqr"] = out["q3"] - out["q1"]
     return out
 
 
 def sex_by_stage_table(
-    df: pd.DataFrame,
-    stage_col: str = "Disease_Stage",
-    sex_col: str = "Sex",
-    normalize: bool = False,
+    df: pd.DataFrame, stage_col: str = "Disease_Stage", sex_col: str = "Sex"
 ) -> pd.DataFrame:
     """
-    Crosstab of Sex by Disease_Stage.
-    If normalize=True, returns row-wise proportions.
+    Crosstab of Sex by Disease Stage (counts).
+
+    Output:
+      rows = disease stages
+      columns = sex categories
     """
-    if normalize:
-        return pd.crosstab(df[stage_col], df[sex_col], normalize="index")
-    return pd.crosstab(df[stage_col], df[sex_col])
+    sub = df[[stage_col, sex_col]].copy()
+    sub = sub.dropna(subset=[stage_col, sex_col])
+    return pd.crosstab(sub[stage_col], sub[sex_col])
 
 
 def age_by_stage_summary(
-    df: pd.DataFrame,
-    stage_col: str = "Disease_Stage",
-    age_col: str = "Age",
+    df: pd.DataFrame, stage_col: str = "Disease_Stage", age_col: str = "Age"
 ) -> pd.DataFrame:
-    """
-    Descriptive stats of Age by Disease_Stage.
-    """
+    """Convenience wrapper: descriptive stats of Age by Disease Stage."""
     return group_descriptives(df, stage_col, age_col)
 
 
-from typing import Sequence
-import pandas as pd
-
-
+# ============================================================
+# Sanity check helper (post-filter validation)
+# ============================================================
 def assert_filtered_gene_values(
-    df: pd.DataFrame,
-    gene_col: str,
-    allowed_values: Sequence[str],
+    df: pd.DataFrame, gene_col: str, allowed_values: List[Any]
 ) -> None:
     """
-    Sanity check: ensure df[gene_col] contains only allowed_values.
-    Intended to be used once after filtering (no plotting/grouping).
+    Sanity check: ensure df[gene_col] contains ONLY allowed values.
+
+    Raises:
+      ValueError if any unexpected values are present.
     """
     present = pd.Series(df[gene_col].dropna().unique()).astype(str).tolist()
     present_set = set(present)

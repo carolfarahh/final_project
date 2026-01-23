@@ -1,61 +1,121 @@
 import pandas as pd
-import math
+import pytest
 
-from src.EDA import missing_summary, group_counts, numeric_summary, descriptives_by_groups
-
-
-def test_missing_summary_counts_and_percent():
-    df = pd.DataFrame({"A": [1, None, 3], "B": [None, None, 2]})
-    out = missing_summary(df, ["A", "B"])
-
-    a = out.loc[out["column"] == "A"].iloc[0]
-    b = out.loc[out["column"] == "B"].iloc[0]
-
-    assert int(a["missing_count"]) == 1
-    assert math.isclose(float(a["missing_percent"]), (1 / 3) * 100)
-
-    assert int(b["missing_count"]) == 2
-    assert math.isclose(float(b["missing_percent"]), (2 / 3) * 100)
+from src.eda import (
+    row_count_log,
+    log_step,
+    log_to_df,
+    missingness_table,
+    sample_for_plot,
+    group_descriptives,
+    sex_by_stage_table,
+    age_by_stage_summary,
+    assert_filtered_gene_values,
+)
 
 
-def test_group_counts_stage_gene():
+# ============================================================
+# Row-count logging tests
+# ============================================================
+def test_row_count_log_flow():
+    df1 = pd.DataFrame({"A": [1, 2, 3]})
+    df2 = pd.DataFrame({"A": [1, 2]})
+
+    log = row_count_log()
+    log_step(log, "raw", df1)
+    log_step(log, "after_filter", df2)
+
+    out = log_to_df(log)
+
+    assert list(out["step"]) == ["raw", "after_filter"]
+    assert list(out["rows"]) == [3, 2]
+    assert out.loc[1, "pct_remaining"] == (2 / 3) * 100
+
+
+# ============================================================
+# Missingness + sampling tests
+# ============================================================
+def test_missingness_table_counts():
+    df = pd.DataFrame({"A": [1, None], "B": [None, None]})
+    out = missingness_table(df)
+
+    assert out.loc["B", "missing_count"] == 2
+    assert out.loc["A", "missing_count"] == 1
+
+
+def test_sample_for_plot_small_returns_copy():
+    df = pd.DataFrame({"A": [1, 2, 3]})
+    out = sample_for_plot(df, n=10, random_state=0)
+
+    # Ensure it's a copy (mutating output should not change original)
+    out.loc[0, "A"] = 999
+    assert df.loc[0, "A"] == 1
+
+
+def test_sample_for_plot_raises_for_nonpositive_n():
+    df = pd.DataFrame({"A": [1]})
+    with pytest.raises(ValueError):
+        sample_for_plot(df, n=0)
+
+
+# ============================================================
+# Group summaries tests
+# ============================================================
+def test_group_descriptives_has_expected_columns():
     df = pd.DataFrame(
         {
-            "stage": ["Pre", "Pre", "Early", "Pre"],
-            "gene": ["MSH3", "MLH1", "MSH3", "MSH3"],
+            "Disease_Stage": ["early", "early", "late"],
+            "Brain_Volume_Loss": [1.0, 3.0, 10.0],
         }
     )
-    out = group_counts(df, ["stage", "gene"])
+    out = group_descriptives(df, "Disease_Stage", "Brain_Volume_Loss")
 
-    counts = {(r["stage"], r["gene"]): int(r["count"]) for _, r in out.iterrows()}
-    assert counts[("Pre", "MSH3")] == 2
-    assert counts[("Pre", "MLH1")] == 1
-    assert counts[("Early", "MSH3")] == 1
-
-
-def test_numeric_summary_basic_stats():
-    df = pd.DataFrame({"x": [1, 2, 3, None]})
-    out = numeric_summary(df, ["x"]).iloc[0]
-
-    assert out["column"] == "x"
-    assert int(out["n"]) == 3
-    assert math.isclose(float(out["mean"]), 2.0)
-    assert float(out["min"]) == 1.0
-    assert float(out["max"]) == 3.0
+    assert "n" in out.columns
+    assert "mean" in out.columns
+    assert "median" in out.columns
+    assert "iqr" in out.columns
+    assert out.loc["early", "n"] == 2
+    assert out.loc["late", "n"] == 1
 
 
-def test_descriptives_by_groups_stage_gene_with_age_mean():
+def test_sex_by_stage_table_counts():
     df = pd.DataFrame(
         {
-            "dv": [1, 2, 3, 4],
-            "stage": ["Pre", "Pre", "Early", "Early"],
-            "gene": ["MSH3", "MSH3", "MSH3", "MLH1"],
-            "age": [10, 20, 30, 40],
+            "Disease_Stage": ["early", "early", "late"],
+            "Sex": ["F", "M", "F"],
         }
     )
-    out = descriptives_by_groups(df, "dv", ["stage", "gene"], extra_means=["age"])
+    out = sex_by_stage_table(df, stage_col="Disease_Stage", sex_col="Sex")
 
-    row = out.loc[(out["stage"] == "Pre") & (out["gene"] == "MSH3")].iloc[0]
-    assert int(row["n"]) == 2
-    assert math.isclose(float(row["mean"]), 1.5)
-    assert math.isclose(float(row["mean_age"]), 15.0)
+    assert out.loc["early", "F"] == 1
+    assert out.loc["early", "M"] == 1
+    assert out.loc["late", "F"] == 1
+
+
+def test_age_by_stage_summary_uses_group_descriptives():
+    df = pd.DataFrame(
+        {
+            "Disease_Stage": ["early", "late", "late"],
+            "Age": [20, 30, 50],
+        }
+    )
+    out = age_by_stage_summary(df, stage_col="Disease_Stage", age_col="Age")
+
+    assert out.loc["early", "n"] == 1
+    assert out.loc["late", "n"] == 2
+
+
+# ============================================================
+# Sanity check tests
+# ============================================================
+def test_assert_filtered_gene_values_passes_when_ok():
+    df = pd.DataFrame({"Gene/Factor": ["mlh1", "msh3", "htt (somatic expansion)"]})
+    assert_filtered_gene_values(
+        df, "Gene/Factor", ["mlh1", "msh3", "htt (somatic expansion)"]
+    )
+
+
+def test_assert_filtered_gene_values_raises_when_unexpected_present():
+    df = pd.DataFrame({"Gene/Factor": ["mlh1", "other"]})
+    with pytest.raises(ValueError):
+        assert_filtered_gene_values(df, "Gene/Factor", ["mlh1"])
