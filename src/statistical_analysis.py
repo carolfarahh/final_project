@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 import pingouin as pg
 import numpy as np
 import pandas as pd
@@ -17,6 +21,8 @@ def factor_categorical(df, factor1, factor2):
     df[factor1] = df[factor1].astype("category")
     df[factor2] = df[factor2].astype("category")
     return df
+
+
 
 #TODO: TWO_WAY_ANOVA homogenous variance and welch
 def anova_model(df, dv, factor1, factor2, levene_test, check_interaction, alpha=0.05):

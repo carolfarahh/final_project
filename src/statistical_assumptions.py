@@ -9,10 +9,24 @@ import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 from statsmodels.formula.api import ols
 import pandas as pd
-
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
+
+def check_independence_duplicates(df, id_col):
+    if id_col not in df.columns:
+        raise ValueError(f"Column '{id_col}' not found. If you don’t have IDs, independence is judged by study design.")
+    dup_ids = df[df.duplicated(subset=[id_col], keep=False)].sort_values(id_col)
+    return dup_ids  # empty = good sign (no repeats)
+
+#New function
+def drop_duplicate_subjects(df, id_col, keep="first"):
+    """
+    Removes duplicated subject IDs.
+    keep="first" keeps one row per subject.
+    keep=False removes all repeated subjects entirely.
+    """
+    return df.drop_duplicates(subset=[id_col], keep=keep)
 
 def check_linearity_age_dv(df, dv="Brain_Volume_Loss", cov="Age", show_plot=True, kind="scatter"):
     """
@@ -55,28 +69,13 @@ import statsmodels.api as sm
 
 def check_homogeneity_of_slopes(df,DV,IV,Covariate):
     model = ols(
-        f"Q('{DV}') ~ C(Q('{IV}')) * Q('{Covariate}')",
+        f"{DV} ~ C({IV}) * {Covariate}",
         data=df
     ).fit()
 
     table = sm.stats.anova_lm(model, typ=2)
     # Key row to check: C(Q('disease stage')):Q('age')
     return table
-
-
-
-# def check_homogeneity_of_variance_levene(df, dv, group):
-#     groups = []
-#     for _, g in df.groupby(group):
-#         vals = g[dv].dropna().astype(float).values
-#         if len(vals) > 0:
-#             groups.append(vals)
-
-#     if len(groups) < 2:
-#         raise ValueError("Need at least 2 groups with data for Levene’s test.")
-
-#     stat, p = levene(*groups, center="median")
-#     return {"levene_stat": float(stat), "p_value": float(p)}
 
 def levene_test(df, dependent_variable, group_variable, center="mean", dropna=True, min_group_size=2):
 
@@ -195,47 +194,33 @@ def log_transform(
 
     return df_out, offset_used
 
-import numpy as np
-
-def sqrt_transform(
-    df,
-    column,
-    new_column=None,
-    offset="auto"
-):
+def square_column(df, col, inplace=False):
     """
-    Square-root transform a column safely.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-    column : str
-        Column to transform
-    new_column : str or None
-        Name of transformed column (default: sqrt_<column>)
-    offset : "auto" or float
-        Value added to make data non-negative
-
-    Returns
-    -------
-    df_out : pandas.DataFrame
-    offset_used : float
+    Squares the values of a column.
+    If inplace=False, returns a new DataFrame.
     """
-    df_out = df.copy()
+    if not inplace:
+        df = df.copy()
+        
+    df[col] = df[col] ** 2
+    return df
 
-    x = df_out[column].astype(float)
 
-    if offset == "auto":
-        min_val = x.min()
-        offset_used = abs(min_val) if min_val < 0 else 0
-    else:
-        offset_used = float(offset)
+def check_vif(df):  #checks multicollinearity, means that two or more predictors in the ANCOVA model are highly correlated with each other. 
+    # Build design matrix like the model would 
+    X = pd.get_dummies(df[["disease_stage", "age", "gender"]], drop_first=True) #convert CV into dummy variables so they can be used in regression.
 
-    transformed = np.sqrt(x + offset_used)
+        #We calculate variance inflation factor(VIF) for each predictor.
+    X = sm.add_constant(X)
 
-    if new_column is None:
-        new_column = f"sqrt_{column}"
+    vifs = []
+    cols = X.columns.tolist()
+    X_vals = X.values.astype(float)
 
-    df_out[new_column] = transformed
+    for i, col in enumerate(cols):
+        vif_val = variance_inflation_factor(X_vals, i)
+        vifs.append({"feature": col, "vif": float(vif_val)})
 
-    return df_out, offset_used
+    return pd.DataFrame(vifs)
+
+

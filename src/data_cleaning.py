@@ -80,56 +80,33 @@ def clean_pipeline(
     df6 = drop_missing_required(df5, required_columns)
     return df6
 
-from statsmodels.formula.api import ols
 
-def check_influence_cooks_distance(df, dv, categorical=[], continuous=[]):
-    """
-    Calculate Cook's distance and return influential rows.
+def remove_influential_by_cooks(df, DV, IV, Covariate, CV=None):
+  
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Your dataframe
-    dv : str
-        Dependent variable
-    categorical : list of str
-        Names of categorical factors
-    continuous : list of str
-        Names of continuous factors
+    # Build formula
+    if CV is None:
+        formula = f"{DV} ~ C({IV}) + {Covariate}"
+    else:
+        formula = f"{DV} ~ C({IV}) + {Covariate} + C({CV})"
 
-    Returns
-    -------
-    dict
-        {
-            "threshold": Cook's distance threshold,
-            "influential_rows": DataFrame with influential rows
-        }
-    """
-    
-    # Build formula dynamically
-    terms = []
-    for col in categorical:
-        terms.append(f"C(Q('{col}'))")
-    for col in continuous:
-        terms.append(f"Q('{col}')")
-    
-    formula = f"Q('{dv}') ~ " + " + ".join(terms)
-    
     # Fit model
     model = ols(formula, data=df).fit()
-    
-    # Get Cook's distance
+
+    # Cook's distance
     infl = model.get_influence()
     cooks = infl.cooks_distance[0]
-    
-    # Add to dataframe
+
     out = df.copy()
     out["cooks_distance"] = cooks
-    
-    # Threshold for influential points
+
+    # Threshold
     threshold = 4 / len(out)
-    influential = out[out["cooks_distance"] > threshold].sort_values(
-        "cooks_distance", ascending=False
-    )
-    
-    return {"threshold": float(threshold), "influential_rows": influential}
+
+    # Influential rows (to remove)
+    influential_rows = out[out["cooks_distance"] > threshold].copy()
+
+    # Cleaned dataset (keep only non-influential)
+    cleaned_df = out[out["cooks_distance"] <= threshold].drop(columns=["cooks_distance"]).copy()
+
+    return cleaned_df, influential_rows, float(threshold)
