@@ -87,6 +87,31 @@ def check_homogeneity_of_slopes(df,DV,IV,Covariate,):   #checks the ANCOVA assum
     ).fit()
 
     table = sm.stats.anova_lm(model, typ=2) #creates  an ANOVA from the fitted regression modle
+    if show_plot:
+        plt.figure(figsize=(8, 5))
+
+        groups = sorted(df[IV].dropna().unique())
+
+        for g in groups:
+            sub = df[df[IV] == g]
+
+            x = sub[Covariate].astype(float).values
+            y = sub[DV].astype(float).values
+
+            # scatter points
+            plt.scatter(x, y, s=8, alpha=0.3, label=f"{IV}={g}")
+
+            # best fit line for THIS group
+            m, b = np.polyfit(x, y, 1)
+            x_line = np.linspace(x.min(), x.max(), 100)
+            plt.plot(x_line, m * x_line + b)
+
+        plt.xlabel(Covariate)
+        plt.ylabel(DV)
+        plt.title(f"Homogeneity of Slopes Check: {DV} vs {Covariate} by {IV}")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
     
     return table
 
