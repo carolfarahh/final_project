@@ -23,8 +23,6 @@ sub_df = drop_missing_required(sub_df, columns_list)
 clean_df, removed_rows, threshold= check_influence_cooks_distance(sub_df, "Brain_Volume_Loss", "Age", "Sex")
 sub_df = factor_categorical(sub_df, "Disease_Stage", "Sex")
 
-#Add logging
-
 
 #EDA 
 from src.eda import basic_overview, missingness_table, duplicates_info

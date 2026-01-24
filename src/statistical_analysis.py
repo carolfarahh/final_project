@@ -14,9 +14,12 @@ import pandas as pd
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+from src.app_logger import logger
+
 
 #TODO: things in common between both tests: Data describe
 def factor_categorical(df, factor1, factor2):
+    logger.debug("Variable converted to factor")
     df = df.copy()
     df[factor1] = df[factor1].astype("category")
     df[factor2] = df[factor2].astype("category")
@@ -33,19 +36,19 @@ def anova_model(df, dv, factor1, factor2, levene_test, check_interaction, alpha=
         # Fit OLS model(Ordinary Least Squares), we define which sum of squares to includes
         model = ols(f'{dv} ~ C({factor1}) + C({factor2}) + C({factor1}):C({factor2})', data=df).fit() #two-way factorial model
         if levene_test < alpha: #typ=3 runs anova model with interaction
-            print("Running Two Way ANOVA with equal variances assumed")
             anova_table = anova_lm(model, typ=3, robust='hc3')  # if robust = hc3, it runs the test with adjustment to the group variance 
+            logger.debug("Running Two Way ANOVA with equal variances assumed")
         else:
-            print("Running Two Way ANOVA adjusted for unequal variance")
-            anova_table = anova_lm(model, typ=3)  
+            anova_table = anova_lm(model, typ=3)
+            logger.debug("Running Two Way ANOVA adjusted for unequal variance")  
     else:
         model = ols( f'{dv} ~ C({factor1}) + C({factor2})', data=df).fit() #additive model, typ=2 ignores interactions
         if levene_test < alpha:
-            print("Running Additive Two Way ANOVA adjusted for unequal variance")           
-            anova_table = anova_lm(model, typ=2, robust='hc3')  
+            anova_table = anova_lm(model, typ=2, robust='hc3')
+            logger.debug("Running Additive Two Way ANOVA adjusted for unequal variance")
         else:
-            print("Running Additive Two Way ANOVA with equal variance assumed")
             anova_table = anova_lm(model, typ=2)  
+            logger.debug("Running Additive Two Way ANOVA with equal variance assumed")
     return anova_table    
 
 def simple_effects_tukey(df, dv, factor1, factor2, alpha=0.05, levine_test): #in case the interaction is significant, check simple effects
@@ -66,10 +69,10 @@ def simple_effects_tukey(df, dv, factor1, factor2, alpha=0.05, levine_test): #in
                 # Simple effect ANOVA for factor1 at this level
                 model_sub = ols(f'{dv} ~ C({other_factor})', data=sub_df).fit()                  
                 if levine_test > alpha:
-                    print("Running simple effect ANOVA with variance assumed")
+                    logger.debug("Running simple effect ANOVA with variance assumed")
                     anova_sub = anova_lm(model_sub, typ=3)                
                 else:
-                    print("Running simple effect ANOVA adjusted for unequal variance")                    
+                    logger.debug("Running simple effect ANOVA adjusted for unequal variance")                    
                     anova_sub = anova_lm(model_sub, typ=3, robust="hc3")
                     
 
@@ -81,11 +84,11 @@ def simple_effects_tukey(df, dv, factor1, factor2, alpha=0.05, levine_test): #in
                     print(f"Simple effect detected significant.\n")
                     if levine_test > alpha:
                     # Tukey post-hoc for all pairwise comparisons of factor1
-                        print(f"Running Tukey test with equal variences assumed")                     
+                        logger.debug("Simple effect detected significant. Running Tukey test with equal variences assumed")                     
                         tukey = pairwise_tukeyhsd(endog=sub_df[dv], groups=sub_df[other_factor], alpha=alpha)                    
                         results[factor][level]['posthoc'] = tukey
                     else:
-                        (f"Running Games-Howell test for samples in need of varience adjustment")
+                        logger.debug("Simple effect detected significant. Running Games-Howell test for samples in need of varience adjustment")                     
                         gameshowell = pg.pairwise_gameshowell(data=sub_df,dv=dv,between=other_factor)
                         results[factor][level]['posthoc'] = gameshowell
     return results
@@ -94,19 +97,18 @@ def simple_effects_tukey(df, dv, factor1, factor2, alpha=0.05, levine_test): #in
 def posthoc_main_effect(df,dv,factor,main_effect_p,levene_test,alpha=0.05):
     #Main effect must be significant
     if main_effect_p >= alpha:
-        print(f"No post-hoc tests: main effect of '{factor}'\n")
-        print(f"is not significant (p = {main_effect_p:.3f}).")
+        logger.debug("No post-hoc tests: main effect of '{factor}'")
+        print(f"{factor} is not significant (p = {main_effect_p:.3f}).")
         return None
     # Two levels indicate that no post-hoc needed
     n_levels = df[factor].nunique()
 
     if n_levels == 2:
-        print(
-            f"No post-hoc tests needed: '{factor}' has only two levels.")
+        logger.debug(f"No post-hoc tests needed: '{factor}' has only two levels.")
         return None
     # If we have equal variances we'll conduct tukey
     if levene_test >= alpha:
-        print(f"Running Tukey HSD for '{factor} with equal variance assumed'.")
+        logger.debug(f"Running Tukey HSD for '{factor} with equal variance assumed'.")
         return pairwise_tukeyhsd(endog=df[dv],groups=df[factor], alpha=alpha)
     #Unequal variances Games–Howell
     else:

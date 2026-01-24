@@ -1,5 +1,7 @@
 import pandas as pd
 from pathlib import Path
+from src.app_logger import logger
+
 
 def load_data(path):
     logger.debug("loading data")
