@@ -1,3 +1,9 @@
 2026-01-24 19:22:03,924 - 4167918527.py - load_data - DEBUG - nice
 2026-01-24 19:47:40,847 - 4167918527.py - load_data - DEBUG - nice
 2026-01-24 23:14:45,769 - 4167918527.py - load_data - DEBUG - nice
+2026-01-24 23:47:42,932 - __init__.py - wrapper - DEBUG - matplotlib data path: /opt/anaconda3/lib/python3.12/site-packages/matplotlib/mpl-data
+2026-01-24 23:47:42,951 - __init__.py - wrapper - DEBUG - CONFIGDIR=/Users/carolfarah/.matplotlib
+2026-01-24 23:47:43,170 - __init__.py - <module> - DEBUG - interactive is False
+2026-01-24 23:47:43,171 - __init__.py - <module> - DEBUG - platform is darwin
+2026-01-24 23:47:43,275 - __init__.py - wrapper - DEBUG - CACHEDIR=/Users/carolfarah/.matplotlib
+2026-01-24 23:47:43,280 - font_manager.py - _load_fontmanager - DEBUG - Using fontManager instance from /Users/carolfarah/.matplotlib/fontlist-v390.json
