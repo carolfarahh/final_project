@@ -2,6 +2,9 @@ import pandas as pd
 from pathlib import Path
 from src.data_import import load_data
 from src.data_cleaning import select_columns, strip_spaces_columns, normalize_case_columns, gene_filter, convert_numeric_columns, drop_missing_required, check_influence_cooks_distance
+from src.statistical_analysis import factor_categorical
+
+from src.app_logger import logger
 
 
 #Import Data from CSV file
@@ -18,8 +21,9 @@ sub_df = normalize_case_columns(sub_df, columns= ["Gene/Factor", "Disease_Stage"
 sub_df = gene_filter(sub_df, "Gene/Factor", values_list= ["mlh1", "msh3", "htt (somatic expansion)"])
 sub_df = drop_missing_required(sub_df, columns_list)
 clean_df, removed_rows, threshold= check_influence_cooks_distance(sub_df, "Brain_Volume_Loss", "Age", "Sex")
+sub_df = factor_categorical(sub_df, "Disease_Stage", "Sex")
 
- #Add logging
+#Add logging
 
 
 #EDA 
@@ -243,10 +247,37 @@ else: #Moderated regression
         print("IV main effect significant\n post-hoc needed (only 2 levels)")
 
 
+#2 way ANOVA
+from src.statistical_assumptions import levene_two_way_anova
+from src.statistical_analysis import anova_model, simple_effects_tukey, posthoc_main_effect
+
+anova_levene_stat, anova_levene_p = levene_two_way_anova(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", center="median")
 
 
-    
-                                                            
+#Running ANOVA test
+
+two_way_anova_results = anova_model(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", anova_levene_p, check_interaction= True, alpha= 0.05 )
+p_interaction = two_way_anova_results.loc['C(Sex):C(Disease_Stage)', 'PR(>F)']
+
+if p_interaction < 0.05:
+    simple_effects_and_tukey = simple_effects_tukey(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", alpha=0.05, anova_levene_p)
+    print(simple_effects_and_tukey)
+else:
+    additive_anova_results = anova_model(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", anova_levene_p, check_interaction= False, alpha= 0.05 )
+
+    for i in additive_anova_results ['PR(>F)']:
+        main_effect_p = ['PR(>F)'][i]
+        if main_effect_p < 0.05:
+            posthoc_main_effect_results = (sub_df,"Brain_Volume_Loss", "Disease_Stage",factor,main_effect_p,levene_test,alpha=0.05)
+
+
+
+def posthoc_main_effect(df,dv,factor,main_effect_p,levene_test,alpha=0.05):
+
+
+
+
+                              
 
 
 
