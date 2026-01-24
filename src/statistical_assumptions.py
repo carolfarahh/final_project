@@ -145,22 +145,194 @@ def check_homogeneity_of_slopes(df,DV,IV,Covariate):
 #         }]
 #     )
 
-def check_homogeneity_of_variance_levene(df, dv, iv):
-    iv = []
-    for _, g in df.groupby(iv):
-        vals = g[dv].dropna().astype(float).values
-        if len(vals) > 0:
-            groups.append(vals)
+# def check_homogeneity_of_variance_levene(df, dv, iv):
+#     iv = []
+#     for _, g in df.groupby(iv):
+#         vals = g[dv].dropna().astype(float).values
+#         if len(vals) > 0:
+#             groups.append(vals)
 
-    if len(groups) < 2:
-        raise ValueError("Need at least 2 groups with data for Levene’s test.")
+#     if len(groups) < 2:
+#         raise ValueError("Need at least 2 groups with data for Levene’s test.")
 
-    stat, p = levene(*iv, center="median")
-    return {"levene_stat": float(stat), "p_value": float(p)}
+#     stat, p = levene(*iv, center="median")
+#     return {"levene_stat": float(stat), "p_value": float(p)}
 
-import matplotlib.pyplot as plt
-import statsmodels.api as sm
-from statsmodels.formula.api import ols
+# import matplotlib.pyplot as plt
+# import statsmodels.api as sm
+# from statsmodels.formula.api import ols
+
+def levene_two_way_anova(df, dv, factor1, factor2, center='median'):
+    groups = [
+        sub_df[dv].dropna().values
+        for _, sub_df in df.groupby([factor1, factor2])
+        if len(sub_df) > 1
+    ]
+
+    stat, p = levene(*groups, center=center)
+    return stat, p
+
+import statsmodels.formula.api as smf
+from scipy.stats import levene
+
+# Validation / sanity-check function (reusable)
+
+def validate_ancova_for_levene(df, dv, iv, covariate):
+    """
+    Validate data for Levene's test in ANCOVA.
+    Raises ValueError if assumptions for the test are violated.
+
+    Returns
+    -------
+    df_clean : pandas.DataFrame
+        Cleaned dataframe (rows with NaNs dropped)
+    """
+
+    # ---- Column existence ----
+    required_cols = {dv, iv, covariate}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    # ---- Drop NaNs ----
+    df_clean = df[[dv, iv, covariate]].dropna()
+
+    if len(df_clean) < 3:
+        raise ValueError("Not enough observations after dropping missing values.")
+
+    # ---- IV checks ----
+    n_levels = df_clean[iv].nunique()
+    if n_levels < 2:
+        raise ValueError(
+            f"Levene's test requires at least 2 levels in '{iv}'. "
+            f"Found {n_levels}."
+        )
+
+    group_sizes = df_clean[iv].value_counts()
+    if (group_sizes < 2).any():
+        bad_levels = group_sizes[group_sizes < 2].index.tolist()
+        raise ValueError(
+            f"Each level of '{iv}' must have at least 2 observations. "
+            f"Problematic levels: {bad_levels}"
+        )
+
+    # ---- Covariate checks ----
+    if df_clean[covariate].nunique() < 2:
+        raise ValueError(
+            f"Covariate '{covariate}' has no variability (constant). "
+            "ANCOVA cannot be fitted."
+        )
+
+    return df_clean
+
+# Clean levene_ancova using the validator
+import statsmodels.formula.api as smf
+from scipy.stats import levene
+
+def levene_ancova(df, dv, iv, covariate, center='median'):
+    """
+    Levene's test for ANCOVA using model residuals.
+    """
+
+    # Validate input
+    df_clean = validate_ancova_for_levene(df, dv, iv, covariate)
+
+    # Fit ANCOVA model
+    model = smf.ols(
+        f"{dv} ~ C({iv}) + {covariate}",
+        data=df_clean
+    ).fit()
+
+    df_clean = df_clean.copy()
+    df_clean["_residuals"] = model.resid
+
+    if df_clean["_residuals"].isna().any():
+        raise ValueError(
+            "Residuals contain NaN values. "
+            "Check model specification or input data."
+        )
+
+    # Levene on residuals
+    groups = [
+        df_clean.loc[df_clean[iv] == level, "_residuals"].values
+        for level in df_clean[iv].unique()
+    ]
+
+    stat, p = levene(*groups, center=center)
+    return stat, p
+# Validation function for Two-Way ANOVA Levene
+
+def validate_two_way_anova_for_levene(df, dv, factor1, factor2):
+    """
+    Validate data for Levene's test in two-way ANOVA.
+    Raises ValueError if assumptions for the test are violated.
+
+    Returns
+    -------
+    df_clean : pandas.DataFrame
+        Cleaned dataframe (rows with NaNs dropped)
+    """
+
+    # ---- Column existence ----
+    required_cols = {dv, factor1, factor2}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    # ---- Drop NaNs ----
+    df_clean = df[[dv, factor1, factor2]].dropna()
+
+    if len(df_clean) < 4:
+        raise ValueError(
+            "Not enough observations after dropping missing values "
+            "for two-way ANOVA."
+        )
+
+    # ---- Factor level checks ----
+    for factor in (factor1, factor2):
+        n_levels = df_clean[factor].nunique()
+        if n_levels < 2:
+            raise ValueError(
+                f"Factor '{factor}' must have at least 2 levels. "
+                f"Found {n_levels}."
+            )
+
+    # ---- Cell size checks (factor1 × factor2) ----
+    cell_sizes = df_clean.groupby([factor1, factor2]).size()
+
+    if (cell_sizes < 2).any():
+        bad_cells = cell_sizes[cell_sizes < 2].index.tolist()
+        raise ValueError(
+            "Each factor1 × factor2 cell must contain at least "
+            "2 observations for Levene's test.\n"
+            f"Problematic cells: {bad_cells}"
+        )
+
+    return df_clean
+
+# Clean levene_two_way_anova using the validator
+from scipy.stats import levene
+
+def levene_two_way_anova(df, dv, factor1, factor2, center='median'):
+    """
+    Levene's test for two-way ANOVA.
+    Tests equality of variances across all factor1 × factor2 cells.
+    """
+
+    # Validate input
+    df_clean = validate_two_way_anova_for_levene(
+        df, dv, factor1, factor2
+    )
+
+    # Levene across all cells
+    groups = [
+        sub_df[dv].values
+        for _, sub_df in df_clean.groupby([factor1, factor2])
+    ]
+
+    stat, p = levene(*groups, center=center)
+    return stat, p
+
 
 def check_normality_of_residuals_visual(df,DV,IV,Covariate):
     model = ols(

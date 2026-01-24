@@ -23,7 +23,123 @@ clean_df, removed_rows, threshold= check_influence_cooks_distance(sub_df, "Brain
 
 
 #EDA 
+from src.eda import basic_overview, missingness_table, duplicates_info
 
+#basic EDA quality checks on sub_df Here we check: (1) a quick overview, (2) missing values per column, and (3) full-row duplicates.
+
+overview = basic_overview(sub_df)
+print("Rows:", overview["n_rows"])
+print("Cols:", overview["n_cols"])
+print("\nDtypes:")
+display(overview["dtypes"])
+
+print("\nMissingness:")
+display(missingness_table(sub_df))
+
+print("\nDuplicates:")
+print(duplicates_info(sub_df))
+
+from src.eda import numeric_summary, categorical_summary
+#Descriptive summaries Now we summarize the distribution of numeric variables (Age, Brain_Volume_Loss) 
+#and the frequency of categorical variables (Gene/Factor, Disease_Stage, Sex).
+print("Numeric summary:")
+display(numeric_summary(sub_df))
+
+print("\nCategorical summary:")
+cat = categorical_summary(sub_df, cols=["Gene/Factor", "Disease_Stage", "Sex"])
+for col, table in cat.items():
+    print(f"\n{col}")
+    display(table)
+
+# Group summaries for the research question We summarize Brain_Volume_Loss across Disease_Stage 
+# (main factor), and then we check how Age and Sex are distributed across stages (because we will adjust for them later).
+
+from src.eda import group_descriptives, crosstab_counts
+
+print("Brain_Volume_Loss by Disease_Stage:")
+display(group_descriptives(sub_df, group_col="Disease_Stage", value_col="Brain_Volume_Loss"))
+
+print("\nAge by Disease_Stage:")
+display(group_descriptives(sub_df, group_col="Disease_Stage", value_col="Age"))
+
+print("\nSex by Disease_Stage (counts):")
+display(crosstab_counts(sub_df, row_col="Disease_Stage", col_col="Sex"))
+
+#Final sanity checks before moving to modeling We confirm that the 
+#dataset contains only the expected Gene/Factor values and that the key analysis columns exist.
+
+from src.eda import assert_required_columns, assert_allowed_values
+
+assert_required_columns(
+    sub_df,
+    ["Patient_ID", "Gene/Factor", "Disease_Stage", "Brain_Volume_Loss", "Age", "Sex"]
+)
+
+assert_allowed_values(
+    sub_df,
+    col="Gene/Factor",
+    allowed_values=["mlh1", "msh3", "htt (somatic expansion)"]
+)
+
+assert_allowed_values(
+    sub_df,
+    col="Sex",
+    allowed_values=["male", "female"]
+)
+
+assert_allowed_values(
+    sub_df,
+    col="Disease_Stage",
+    allowed_values=["early", "middle", "late", "pre-symptomatic"]
+)
+
+print("Sanity checks passed.")
+
+#Boxplot of Brain Volume Loss across Disease Stages This plot helps visualize differences in 
+# the distribution of Brain_Volume_Loss between disease stages (median, spread, and potential outliers).
+
+import matplotlib.pyplot as plt
+
+plt.figure()
+sub_df.boxplot(column="Brain_Volume_Loss", by="Disease_Stage")
+plt.title("Brain_Volume_Loss by Disease_Stage")
+plt.suptitle("")  # removes the automatic pandas subtitle
+plt.xlabel("Disease_Stage")
+plt.ylabel("Brain_Volume_Loss")
+plt.xticks(rotation=20)
+plt.show()
+
+#Histogram of Brain Volume Loss This plot shows 
+#the overall distribution of Brain_Volume_Loss to check skewness and potential outliers.
+
+plt.figure()
+plt.hist(sub_df["Brain_Volume_Loss"], bins=30)
+plt.title("Distribution of Brain_Volume_Loss")
+plt.xlabel("Brain_Volume_Loss")
+plt.ylabel("Count")
+plt.show()
+
+#Scatter plot (Age vs Brain Volume Loss) with transparency This scatter plot visualizes 
+# the relationship between Age and Brain_Volume_Loss. Because the dataset is large, many 
+# points overlap; therefore, we use transparency (alpha) to reduce overplotting and make the density of points easier to interpret.
+
+plt.figure()
+plt.scatter(sub_df["Age"], sub_df["Brain_Volume_Loss"], s=8, alpha=0.2)
+plt.title("Age vs Brain_Volume_Loss (alpha=0.2)")
+plt.xlabel("Age")
+plt.ylabel("Brain_Volume_Loss")
+plt.show()
+
+#Boxplot of Brain Volume Loss by Sex This plot compares the distribution of Brain_Volume_Loss between sexes 
+#(median and spread), which supports the “adjust for Sex” part of the research question.
+
+plt.figure()
+sub_df.boxplot(column="Brain_Volume_Loss", by="Sex")
+plt.title("Brain_Volume_Loss by Sex")
+plt.suptitle("")
+plt.xlabel("Sex")
+plt.ylabel("Brain_Volume_Loss")
+plt.show()
 
 #Assumptions
 from src.statistical_assumptions import check_independence_duplicates, plot_ancova_linearity, drop_duplicate_subjects, levene_test
