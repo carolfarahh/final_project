@@ -80,7 +80,7 @@ def run_ancova_with_age_squared(df, DV, IV, Covariate, CV=None):
 import statsmodels.api as sm
 from statsmodels.formula.api import ols
 
-def check_homogeneity_of_slopes(df,DV,IV,Covariate,):   #checks the ANCOVA assumption that the relationship between the covariate and the DV is the same across all levels of IV. 
+def check_homogeneity_of_slopes(df,DV,IV,Covariate,show_plot):   #checks the ANCOVA assumption that the relationship between the covariate and the DV is the same across all levels of IV. 
     model = ols(
         f"{DV}) ~ C(({IV}) * {Covariate}",   # model that includes an interaction term between  the covariate and the group factor(stage*age)
         data=df
