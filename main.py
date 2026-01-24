@@ -160,8 +160,7 @@ linearity_check_p_value = linearity_check["p_value"]
 
 # Homogeneity of Variance (Homoscedasticity)
 
-levene_test_ANCOVA = 
-
+ancova_levene_stat, ancova_levene_p = levene_ancova(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Age", center='median')
 
 # Linearity of residuals dataset assumption
 
@@ -188,9 +187,35 @@ homogeneity_of_slopes_table = check_homogeneity_of_slopes(sub_df, "Brain_Volume_
 p_val_homogeneity_of_slopes= anova_table.loc["C(Disease_Stage):Age", "PR(>F)"]
 if p_val_homogeneity_of_slopes > 0.05:
     print("The effect of the covariate Age are the same on the level of IV Disease_Stage.\n Conducting ANCOVA")
+    ancova_test_model, ancova_test_table = run_ancova(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Age", ancova_levene_p, linearity_check_p_value, alpha=0.05)
+    if ancova_table_table.iloc[1]["PR(>F)"] > 0.05 and ancova_table_table.iloc[0]["PR(>F)"]>0.05:
+        print("An ANCOVA revealed no significant effect of disease stage on brain volume loss, controlling for age," \
+        "nor was age significantly associated with brain volume loss.\n")
+        
+    elif ancova_table_table.iloc[1]["PR(>F)"] > 0.05 and ancova_table_table.iloc[0]["PR(>F)"]<0.05:
+        print("An ANCOVA revealed a significant effect of disease stage on brain volume loss, " \
+        f"controlling for age p = {ancova_table_table.iloc[0]["PR(>F)"]}, ηp² = {ancova_table_table.iloc[0]["partial_eta_sq"]}. Age was not significantly associated with brain volume loss.")
+        print("\nPost-hoc pairwise comparisons of adjusted means were conducted using Bonferroni correction.")
+        ancova_post_hoc = run_ancova_with_statsmodels_posthoc(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Age", alpha=0.05)
+    elif ancova_table_table.iloc[1]["PR(>F)"] < 0.05 and ancova_table_table.iloc[0]["PR(>F)"]>0.05:
+        print("An ANCOVA revealed no significant effect of disease stage on brain volume loss after controlling for age. " \
+        f"Age was significantly associated with brain volume loss, p = {ancova_table_table.iloc[1]["PR(>F)"]}.")
+    elif ancova_table_table.iloc[1]["PR(>F)"] < 0.05 and ancova_table_table.iloc[0]["PR(>F)"]<0.05:
+        print("An ANCOVA revealed a significant effect of disease stage on brain volume loss, " \
+        f"controlling for age, F(df₁, df₂) = X.XX, p = {ancova_table_table.iloc[0]["PR(>F)"]}, ηp² = {ancova_table_table.iloc[0]["partial_eta_sq"]}." \ 
+        f"Age was also significantly associated with brain volume loss, F(1, df₂) = X.XX, p = {ancova_table_table.iloc[1]["PR(>F)"]}.")
+        print("\nPost-hoc pairwise comparisons of adjusted means were conducted using Bonferroni correction.")
+        ancova_post_hoc = run_ancova_with_statsmodels_posthoc(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Age", alpha=0.05)
+        def run_ancova_with_statsmodels_posthoc(data, dv, iv, covariate, alpha=0.05):
 
+
+
+    
 else:
     print("The effect of the covariate Age differs depending on the level of IV Disease_Stage.\n Conducting moderated regression instead")
+
+
+
 
 
 
