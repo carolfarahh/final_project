@@ -91,6 +91,8 @@ def check_homogeneity_of_slopes(df,DV,IV,Covariate,):   #checks the ANCOVA assum
     return table
 
 # 4) homogeneity of variances.
+import pandas as  pd 
+from scipy.stats import levene
 def levene_test(df, dependent_variable, group_variable, center="mean", dropna=True, min_group_size=2):    # checks that the variance of DV is similar across all groups (disease stages).
     if dependent_variable not in df.columns:
         raise KeyError(f"Missing column: {dependent_variable}")
@@ -213,28 +215,6 @@ def log_transform(
 
 import numpy as np
 
-
-
-#6) multicollinearity VIF between predictors.
-import numpy as np
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-
-def check_vif(df):  #checks multicollinearity, means that two or more predictors in the ANCOVA model are highly correlated with each other. 
-    # Build design matrix like the model would 
-    X = pd.get_dummies(df[["disease_stage", "age", "gender"]], drop_first=True) #convert CV into dummy variables so they can be used in regression.
-
-        #We calculate variance inflation factor(VIF) for each predictor.
-    X = sm.add_constant(X)
-
-    vifs = []
-    cols = X.columns.tolist()
-    X_vals = X.values.astype(float)
-
-    for i, col in enumerate(cols):
-        vif_val = variance_inflation_factor(X_vals, i)
-        vifs.append({"feature": col, "vif": float(vif_val)})
-
-    return pd.DataFrame(vifs)
 
 # 7) outliers points. 
 from statsmodels.formula.api import ols
