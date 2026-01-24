@@ -1,5 +1,5 @@
 # tests/test_ancova.py
-# Run with: pytest -q
+
 
 import numpy as np
 import pandas as pd
@@ -8,40 +8,6 @@ import pytest
 import matplotlib
 matplotlib.use("Agg")  # prevents GUI popping up during tests
 
-
-# =========================
-# IMPORT YOUR FUNCTIONS HERE
-# =========================
-# Example:
-# from Ancova import (
-#     load_and_filter_somatic,
-#     check_independence_duplicates,
-#     check_linearity_age_dv,
-#     run_ancova_with_age_squared,
-#     check_homogeneity_of_slopes,
-#     validate_ancova_for_levene,
-#     levene_ancova,
-#     check_normality_of_residuals_visual,
-#     log_transform,
-#     remove_influential_by_cooks,
-# )
-
-# ------------------------------------------
-# QUICK FIXES YOUR CODE NEEDS TO PASS TESTS:
-# ------------------------------------------
-# 1) load_and_filter_somatic: you require "somatic_expansion" but filter "somatic expansion"
-#    -> use df["somatic_expansion"] everywhere (since you said you use underscores).
-#
-# 2) check_homogeneity_of_slopes: formula has extra parentheses and wrong Q usage.
-#    -> should look like: f"{DV} ~ C({IV}) * {Covariate}" (+ optional C(CV))
-#
-# 3) check_normality_of_residuals_visual: formula has extra parentheses
-#    -> should be: f"{DV} ~ C({IV}) + {Covariate}" (or + C(CV)) not "* ... ))"
-
-
-# =========================
-# FIXTURES (small fake data)
-# =========================
 @pytest.fixture
 def small_df():
     # a minimal dataset with 3 stages, numeric DV, numeric age, and gender
@@ -55,9 +21,9 @@ def small_df():
     })
 
 
-# =========================
+
 # 0) load_and_filter_somatic
-# =========================
+
 def test_load_and_filter_somatic_success(tmp_path, small_df):
     # write temp csv
     p = tmp_path / "tmp.csv"
@@ -88,9 +54,9 @@ def test_load_and_filter_somatic_empty_filter_raises(tmp_path, small_df):
         load_and_filter_somatic(str(p))
 
 
-# ==================================
+
 # 1) check_independence_duplicates
-# ==================================
+
 def test_check_independence_duplicates_returns_empty_when_unique(small_df):
     dup = check_independence_duplicates(small_df, id_col="participant_id")
     assert isinstance(dup, pd.DataFrame)
@@ -111,9 +77,8 @@ def test_check_independence_duplicates_raises_if_no_id(small_df):
         check_independence_duplicates(df, id_col="participant_id")
 
 
-# ==================================
 # 2) check_linearity_age_dv
-# ==================================
+
 def test_check_linearity_age_dv_returns_dict(small_df):
     res = check_linearity_age_dv(small_df, dv="brain_volume_loss", cov="age", show_plot=False)
     assert isinstance(res, dict)
@@ -122,9 +87,9 @@ def test_check_linearity_age_dv_returns_dict(small_df):
     assert isinstance(res["p_value"], float)
 
 
-# ==================================
+
 # (optional) ANCOVA with age^2
-# ==================================
+
 def test_run_ancova_with_age_squared_runs(small_df):
     table, model = run_ancova_with_age_squared(
         small_df,
@@ -138,9 +103,9 @@ def test_run_ancova_with_age_squared_runs(small_df):
     assert hasattr(model, "params")
 
 
-# ==================================
+
 # 3) check_homogeneity_of_slopes
-# ==================================
+
 def test_check_homogeneity_of_slopes_has_interaction_row(small_df):
     # this test assumes your function builds a model with IV*Covariate interaction
     table = check_homogeneity_of_slopes(small_df, DV="brain_volume_loss", IV="disease_stage", Covariate="age")
@@ -151,9 +116,9 @@ def test_check_homogeneity_of_slopes_has_interaction_row(small_df):
     assert interaction_found
 
 
-# ==================================
+
 # 4) validate_ancova_for_levene + levene_ancova
-# ==================================
+
 def test_validate_ancova_for_levene_success(small_df):
     df_clean = validate_ancova_for_levene(small_df, "brain_volume_loss", "disease_stage", "age")
     assert isinstance(df_clean, pd.DataFrame)
@@ -196,9 +161,9 @@ def test_levene_ancova_returns_stat_p(small_df):
     assert 0.0 <= p <= 1.0
 
 
-# ==================================
+
 # 5) check_normality_of_residuals_visual
-# ==================================
+
 def test_check_normality_of_residuals_visual_returns_n_resid(monkeypatch, small_df):
     # prevent plt.show() from blocking
     import matplotlib.pyplot as plt
@@ -215,9 +180,9 @@ def test_check_normality_of_residuals_visual_returns_n_resid(monkeypatch, small_
     assert out["n_resid"] > 0
 
 
-# ==================================
+
 # log_transform
-# ==================================
+
 def test_log_transform_adds_column_and_offset(small_df):
     df = small_df.copy()
     df2, offset = log_transform(df, "brain_volume_loss", new_column="log_bvl", offset="auto")
@@ -233,9 +198,9 @@ def test_log_transform_handles_nonpositive():
     assert np.isfinite(df2["log_x"]).all()
 
 
-# ==================================
+
 # 7) remove_influential_by_cooks
-# ==================================
+
 def test_remove_influential_by_cooks_returns_clean_and_influential(small_df):
     clean_df, influential_rows, threshold = remove_influential_by_cooks(
         small_df,
