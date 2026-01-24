@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
 
-def adjusted_means_plot(df, IV, Covariate):
+def adjusted_means_plot(df, IV, Covariate,DV):
     # Fit ANCOVA model
     model = smf.ols(f"{dv} ~ C({iv}) + {cov}", data=df).fit()
 
