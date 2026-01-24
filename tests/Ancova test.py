@@ -1,224 +1,251 @@
-# 1) test for Independence of observations
-import pandas as pd
+# tests/test_ancova.py
+# Run with: pytest -q
 
-def check_independence_duplicates(df, id_col="participant_id"):
-    """
-    Checks for repeated participants (duplicate IDs).
-    Returns a DataFrame of duplicated rows (empty = good).
-    """
-
-    id_col = id_col.strip().lower()
-
-    # normalize column names (safe)
-    df = df.copy()
-    df.columns = df.columns.str.strip().str.lower()
-
-    if id_col not in df.columns:
-        raise ValueError(
-            f"Column '{id_col}' not found. Independence must be justified by study design "
-            "or add a participant ID column."
-        )
-
-    duplicated_rows = df[df.duplicated(subset=[id_col], keep=False)].sort_values(id_col)
-    return duplicated_rows
-
-# 2) linearity between the covariate (Age) and DV (brain-volume-loss)
-from scipy.stats import pearsonr
-
-def check_linearity_age_dv(df, dv="brain-volume-loss", cov="age"):
-    x = df[cov].astype(float).values
-    y = df[dv].astype(float).values
-
-    r, p = pearsonr(x, y)
-
-    return {"pearson_r": float(r), "p_value": float(p)}
-
-# 3) homogeneity of regression slopes.
-import statsmodels.api as sm
-from statsmodels.formula.api import ols
-
-def check_homogeneity_of_slopes(df):
-    """
-    Tests the homogeneity of regression slopes assumption by
-    fitting the interaction model: stage * age.
-
-    Returns an ANOVA table (DataFrame).
-    """
-    model = ols(
-        "Q('brain-volume-loss') ~ C(Q('disease stage')) * Q('age') + C(Q('gender'))",
-        data=df
-    ).fit()
-
-    table = sm.stats.anova_lm(model, typ=2)
-    return table
-
-# 4) homogeneity of variances.
-from scipy.stats import levene
-
-def check_homogeneity_of_variance_levene(df, dv="brain-volume-loss", group="disease stage"):
-    """
-    Levene's test checks if DV variance is equal across groups.
-    Returns dict with levene_stat and p_value.
-    """
-    groups = []
-    for _, g in df.groupby(group):
-        vals = g[dv].dropna().astype(float).values
-        if len(vals) > 0:
-            groups.append(vals)
-
-    if len(groups) < 2:
-        raise ValueError("Need at least 2 groups with data for Levene’s test.")
-
-    stat, p = levene(*groups, center="median")
-    return {"levene_stat": float(stat), "p_value": float(p)}
-
-# 5) normality of residuals.
-from scipy.stats import shapiro
-from statsmodels.formula.api import ols
-
-def check_normality_of_residuals(df):
-    """
-    Fits ANCOVA model and runs Shapiro-Wilk normality test on residuals.
-    Returns dict with shapiro_stat, p_value, and number of residuals.
-    """
-    model = ols(
-        "Q('brain-volume-loss') ~ C(Q('disease stage')) + Q('age') + C(Q('gender'))",
-        data=df
-    ).fit()
-
-    resid = model.resid.dropna()
-
-    stat, p = shapiro(resid)
-
-    return {"shapiro_stat": float(stat), "p_value": float(p), "n_resid": int(resid.shape[0])}
-
-# 6) multicollinearity VIF between predictors.
-import pandas as pd
-import statsmodels.api as sm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-
-def check_vif(df):
-    """
-    Computes VIF for predictors in ANCOVA:
-    disease stage, age, gender
-    Returns a DataFrame with columns: feature, vif
-    """
-
-    X = pd.get_dummies(df[["disease stage", "age", "gender"]], drop_first=True)
-
-    # Add intercept
-    X = sm.add_constant(X)
-
-    vifs = []
-    cols = X.columns.tolist()
-    X_vals = X.values.astype(float)
-
-    for i, col in enumerate(cols):
-        vif_val = variance_inflation_factor(X_vals, i)
-        vifs.append({"feature": col, "vif": float(vif_val)})
-
-    return pd.DataFrame(vifs)
-
-# 7) outliers points. 
-from statsmodels.formula.api import ols
-
-def check_influence_cooks_distance(df):
-    """
-    Fits ANCOVA model and returns influential rows based on Cook's distance.
-    Rule of thumb threshold: 4/n
-    """
-    model = ols(
-        "Q('brain-volume-loss') ~ C(Q('disease stage')) + Q('age') + C(Q('gender'))",
-        data=df
-    ).fit()
-
-    infl = model.get_influence()
-    cooks = infl.cooks_distance[0]
-
-    out = df.copy()
-    out["cooks_distance"] = cooks
-
-    threshold = 4 / len(out)
-    influential = out[out["cooks_distance"] > threshold].sort_values("cooks_distance", ascending=False)
-
-    return {"threshold": float(threshold), "influential_rows": influential}
-
-#  8) test for Ancova test.
 import numpy as np
 import pandas as pd
 import pytest
 
-from Ancova import load_and_filter_somatic, run_ancova
+import matplotlib
+matplotlib.use("Agg")  # prevents GUI popping up during tests
 
 
-def make_df_basic(n=60, seed=0):
-    rng = np.random.default_rng(seed)
+# =========================
+# IMPORT YOUR FUNCTIONS HERE
+# =========================
+# Example:
+# from Ancova import (
+#     load_and_filter_somatic,
+#     check_independence_duplicates,
+#     check_linearity_age_dv,
+#     run_ancova_with_age_squared,
+#     check_homogeneity_of_slopes,
+#     validate_ancova_for_levene,
+#     levene_ancova,
+#     check_normality_of_residuals_visual,
+#     log_transform,
+#     remove_influential_by_cooks,
+# )
 
-    df = pd.DataFrame({
-        "brain-volume-loss": rng.normal(2.0, 0.3, n),
-        "disease stage": rng.choice(["1", "2", "3"], size=n),
-        "age": rng.normal(50, 10, n),
-        "gender": rng.choice(["M", "F"], size=n),
-        "somatic expansion": rng.choice(["yes", "no"], size=n, p=[0.7, 0.3])
+# ------------------------------------------
+# QUICK FIXES YOUR CODE NEEDS TO PASS TESTS:
+# ------------------------------------------
+# 1) load_and_filter_somatic: you require "somatic_expansion" but filter "somatic expansion"
+#    -> use df["somatic_expansion"] everywhere (since you said you use underscores).
+#
+# 2) check_homogeneity_of_slopes: formula has extra parentheses and wrong Q usage.
+#    -> should look like: f"{DV} ~ C({IV}) * {Covariate}" (+ optional C(CV))
+#
+# 3) check_normality_of_residuals_visual: formula has extra parentheses
+#    -> should be: f"{DV} ~ C({IV}) + {Covariate}" (or + C(CV)) not "* ... ))"
+
+
+# =========================
+# FIXTURES (small fake data)
+# =========================
+@pytest.fixture
+def small_df():
+    # a minimal dataset with 3 stages, numeric DV, numeric age, and gender
+    return pd.DataFrame({
+        "brain_volume_loss": [1.0, 1.2, 0.9, 2.5, 2.6, 2.4, 3.0, 3.2, 2.9],
+        "disease_stage":     [1,   1,   1,   2,   2,   2,   3,   3,   3],
+        "age":               [30,  32,  31,  45,  47,  44,  55,  56,  54],
+        "gender":            ["M", "F", "M", "F", "F", "M", "M", "F", "M"],
+        "somatic_expansion": ["yes","yes","yes","yes","yes","yes","yes","yes","yes"],
+        "participant_id":    ["p1","p2","p3","p4","p5","p6","p7","p8","p9"]
     })
-    return df
 
 
-def test_load_and_filter_somatic_filters_yes_only(tmp_path):
-    df = make_df_basic()
+# =========================
+# 0) load_and_filter_somatic
+# =========================
+def test_load_and_filter_somatic_success(tmp_path, small_df):
+    # write temp csv
+    p = tmp_path / "tmp.csv"
+    small_df.to_csv(p, index=False)
 
-    csv_path = tmp_path / "fake_hd.csv"
-    df.to_csv(csv_path, index=False)
-
-    som = load_and_filter_somatic(str(csv_path))
-
-    # should contain only "yes/true/1/y" group (here: only "yes" exists)
-    assert not som.empty
-    assert som["somatic expansion"].astype(str).str.strip().str.lower().isin(["1", "true", "yes", "y"]).all()
-
-    # required columns still exist
-    for col in ["brain-volume-loss", "disease stage", "age", "gender"]:
-        assert col in som.columns
+    df_out = load_and_filter_somatic(str(p))
+    assert isinstance(df_out, pd.DataFrame)
+    assert len(df_out) == len(small_df)  # all are somatic_expansion yes
+    assert set(["brain_volume_loss", "disease_stage", "age", "gender"]).issubset(df_out.columns)
 
 
-def test_load_and_filter_somatic_raises_if_missing_required_column(tmp_path):
-    df = make_df_basic()
-
-    # drop a required column
-    df = df.drop(columns=["gender"])
-
-    csv_path = tmp_path / "missing_col.csv"
-    df.to_csv(csv_path, index=False)
+def test_load_and_filter_somatic_missing_columns_raises(tmp_path, small_df):
+    p = tmp_path / "tmp.csv"
+    bad = small_df.drop(columns=["age"])
+    bad.to_csv(p, index=False)
 
     with pytest.raises(ValueError):
-        load_and_filter_somatic(str(csv_path))
+        load_and_filter_somatic(str(p))
 
 
-def test_load_and_filter_somatic_raises_if_filter_returns_empty(tmp_path):
-    df = make_df_basic()
-    df["somatic expansion"] = "no"   # ensure filter finds nothing
-
-    csv_path = tmp_path / "no_somatic.csv"
-    df.to_csv(csv_path, index=False)
+def test_load_and_filter_somatic_empty_filter_raises(tmp_path, small_df):
+    p = tmp_path / "tmp.csv"
+    bad = small_df.copy()
+    bad["somatic_expansion"] = "no"
+    bad.to_csv(p, index=False)
 
     with pytest.raises(ValueError):
-        load_and_filter_somatic(str(csv_path))
+        load_and_filter_somatic(str(p))
 
 
-def test_run_ancova_returns_table_and_model():
-    # build already-filtered somatic df
-    df = make_df_basic()
-    som = df[df["somatic expansion"].str.lower() == "yes"].copy()
+# ==================================
+# 1) check_independence_duplicates
+# ==================================
+def test_check_independence_duplicates_returns_empty_when_unique(small_df):
+    dup = check_independence_duplicates(small_df, id_col="participant_id")
+    assert isinstance(dup, pd.DataFrame)
+    assert dup.empty
 
-    ancova_table, model = run_ancova(som)
 
-    # ancova_table should be a DataFrame-like table
-    assert hasattr(ancova_table, "shape")
-    assert ancova_table.shape[0] >= 1
+def test_check_independence_duplicates_finds_duplicates(small_df):
+    df = small_df.copy()
+    df.loc[1, "participant_id"] = df.loc[0, "participant_id"]  # duplicate
+    dup = check_independence_duplicates(df, id_col="participant_id")
+    assert not dup.empty
+    assert (dup["participant_id"] == df.loc[0, "participant_id"]).all()
 
-    # should contain the disease stage term in some form
-    assert "C(Q('disease stage'))" in ancova_table.index
 
-    # model should be fitted and have params
+def test_check_independence_duplicates_raises_if_no_id(small_df):
+    df = small_df.drop(columns=["participant_id"])
+    with pytest.raises(ValueError):
+        check_independence_duplicates(df, id_col="participant_id")
+
+
+# ==================================
+# 2) check_linearity_age_dv
+# ==================================
+def test_check_linearity_age_dv_returns_dict(small_df):
+    res = check_linearity_age_dv(small_df, dv="brain_volume_loss", cov="age", show_plot=False)
+    assert isinstance(res, dict)
+    assert "pearson_r" in res and "p_value" in res
+    assert isinstance(res["pearson_r"], float)
+    assert isinstance(res["p_value"], float)
+
+
+# ==================================
+# (optional) ANCOVA with age^2
+# ==================================
+def test_run_ancova_with_age_squared_runs(small_df):
+    table, model = run_ancova_with_age_squared(
+        small_df,
+        DV="brain_volume_loss",
+        IV="disease_stage",
+        Covariate="age",
+        CV="gender"
+    )
+    # table is an ANOVA table, model is statsmodels RegressionResults
+    assert hasattr(table, "shape")
     assert hasattr(model, "params")
-    assert len(model.params) > 0
+
+
+# ==================================
+# 3) check_homogeneity_of_slopes
+# ==================================
+def test_check_homogeneity_of_slopes_has_interaction_row(small_df):
+    # this test assumes your function builds a model with IV*Covariate interaction
+    table = check_homogeneity_of_slopes(small_df, DV="brain_volume_loss", IV="disease_stage", Covariate="age")
+    assert hasattr(table, "index")
+    # interaction term should appear
+    # depending on formula, it might be: "C(disease_stage):age" or similar
+    interaction_found = any(":" in str(idx) for idx in table.index)
+    assert interaction_found
+
+
+# ==================================
+# 4) validate_ancova_for_levene + levene_ancova
+# ==================================
+def test_validate_ancova_for_levene_success(small_df):
+    df_clean = validate_ancova_for_levene(small_df, "brain_volume_loss", "disease_stage", "age")
+    assert isinstance(df_clean, pd.DataFrame)
+    assert not df_clean.empty
+
+
+def test_validate_ancova_for_levene_raises_missing_col(small_df):
+    df = small_df.drop(columns=["age"])
+    with pytest.raises(ValueError):
+        validate_ancova_for_levene(df, "brain_volume_loss", "disease_stage", "age")
+
+
+def test_validate_ancova_for_levene_raises_single_group(small_df):
+    df = small_df.copy()
+    df["disease_stage"] = 1
+    with pytest.raises(ValueError):
+        validate_ancova_for_levene(df, "brain_volume_loss", "disease_stage", "age")
+
+
+def test_validate_ancova_for_levene_raises_group_too_small(small_df):
+    df = small_df.copy()
+    # make stage 3 only 1 row
+    df = df[df["disease_stage"] != 3].copy()
+    df = pd.concat([df, small_df[small_df["disease_stage"] == 3].head(1)], ignore_index=True)
+    with pytest.raises(ValueError):
+        validate_ancova_for_levene(df, "brain_volume_loss", "disease_stage", "age")
+
+
+def test_validate_ancova_for_levene_raises_constant_covariate(small_df):
+    df = small_df.copy()
+    df["age"] = 50
+    with pytest.raises(ValueError):
+        validate_ancova_for_levene(df, "brain_volume_loss", "disease_stage", "age")
+
+
+def test_levene_ancova_returns_stat_p(small_df):
+    stat, p = levene_ancova(small_df, "brain_volume_loss", "disease_stage", "age", center="median")
+    assert isinstance(stat, float)
+    assert isinstance(p, float)
+    assert 0.0 <= p <= 1.0
+
+
+# ==================================
+# 5) check_normality_of_residuals_visual
+# ==================================
+def test_check_normality_of_residuals_visual_returns_n_resid(monkeypatch, small_df):
+    # prevent plt.show() from blocking
+    import matplotlib.pyplot as plt
+    monkeypatch.setattr(plt, "show", lambda: None)
+
+    out = check_normality_of_residuals_visual(
+        small_df,
+        DV="brain_volume_loss",
+        IV="disease_stage",
+        Covariate="age"
+    )
+    assert isinstance(out, dict)
+    assert "n_resid" in out
+    assert out["n_resid"] > 0
+
+
+# ==================================
+# log_transform
+# ==================================
+def test_log_transform_adds_column_and_offset(small_df):
+    df = small_df.copy()
+    df2, offset = log_transform(df, "brain_volume_loss", new_column="log_bvl", offset="auto")
+    assert "log_bvl" in df2.columns
+    assert isinstance(offset, float)
+    assert np.isfinite(df2["log_bvl"]).all()
+
+
+def test_log_transform_handles_nonpositive():
+    df = pd.DataFrame({"x": [-2.0, 0.0, 2.0]})
+    df2, offset = log_transform(df, "x", new_column="log_x", offset="auto")
+    assert offset > 0
+    assert np.isfinite(df2["log_x"]).all()
+
+
+# ==================================
+# 7) remove_influential_by_cooks
+# ==================================
+def test_remove_influential_by_cooks_returns_clean_and_influential(small_df):
+    clean_df, influential_rows, threshold = remove_influential_by_cooks(
+        small_df,
+        DV="brain_volume_loss",
+        IV="disease_stage",
+        Covariate="age",
+        CV="gender"
+    )
+    assert isinstance(clean_df, pd.DataFrame)
+    assert isinstance(influential_rows, pd.DataFrame)
+    assert isinstance(threshold, float)
+    # clean_df should never be bigger than original
+    assert len(clean_df) <= len(small_df)

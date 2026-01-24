@@ -34,7 +34,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
-def check_linearity_age_dv(df, dv="brain-volume-loss", cov="age", show_plot=True):     #this step check the ANCOVA assumption that the relationship between the covariate and the DV is linear.
+def check_linearity_age_dv(df, dv="brain_volume_loss", cov="age", show_plot=True):     #this step check the ANCOVA assumption that the relationship between the covariate and the DV is linear.
     # numeric arrays
     x = df[cov].astype(float).values
     y = df[dv].astype(float).values
@@ -91,64 +91,89 @@ def check_homogeneity_of_slopes(df,DV,IV,Covariate,):   #checks the ANCOVA assum
     return table
 
 # 4) homogeneity of variances.
-import pandas as pd
+def validate_ancova_for_levene(df, dv, iv, covariate):
+    """
+    Validate data for Levene's test in ANCOVA.
+    Raises ValueError if assumptions for the test are violated.
+
+    Returns
+    -------
+    df_clean : pandas.DataFrame
+        Cleaned dataframe (rows with NaNs dropped)
+    """
+
+    # ---- Column existence ----
+    required_cols = {dv, iv, covariate}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    # ---- Drop NaNs ----
+    df_clean = df[[dv, iv, covariate]].dropna()
+
+    if len(df_clean) < 3:
+        raise ValueError("Not enough observations after dropping missing values.")
+
+    # ---- IV checks ----
+    n_levels = df_clean[iv].nunique()
+    if n_levels < 2:
+        raise ValueError(
+            f"Levene's test requires at least 2 levels in '{iv}'. "
+            f"Found {n_levels}."
+        )
+
+    group_sizes = df_clean[iv].value_counts()
+    if (group_sizes < 2).any():
+        bad_levels = group_sizes[group_sizes < 2].index.tolist()
+        raise ValueError(
+            f"Each level of '{iv}' must have at least 2 observations. "
+            f"Problematic levels: {bad_levels}"
+        )
+
+    # ---- Covariate checks ----
+    if df_clean[covariate].nunique() < 2:
+        raise ValueError(
+            f"Covariate '{covariate}' has no variability (constant). "
+            "ANCOVA cannot be fitted."
+        )
+
+    return df_clean
+
+# Clean levene_ancova using the validator
+import statsmodels.formula.api as smf
 from scipy.stats import levene
 
-def levene_test(df, dependent_variable, group_variable, center="median", dropna=True, min_group_size=2):
-    # 1) Column checks
-    if dependent_variable not in df.columns:
-        raise KeyError(f"Missing column: {dependent_variable}. Available: {list(df.columns)}")
-    if group_variable not in df.columns:
-        raise KeyError(f"Missing column: {group_variable}. Available: {list(df.columns)}")
+def levene_ancova(df, dv, iv, covariate, center='median'):
+    """
+    Levene's test for ANCOVA using model residuals.
+    """
 
-    # 2) Validate center
-    if center not in {"median", "mean", "trimmed"}:
-        raise ValueError("center must be one of: 'median', 'mean', 'trimmed'")
+    # Validate input
+    df_clean = validate_ancova_for_levene(df, dv, iv, covariate)
 
-    # 3) Grab columns
-    y = df[dependent_variable]
-    g = df[group_variable]
+    # Fit ANCOVA model
+    model = smf.ols(
+        f"{dv} ~ C({iv}) + {covariate}",
+        data=df_clean
+    ).fit()
 
-    # 4) Drop missing
-    if dropna:
-        mask = y.notna() & g.notna()
-        y = y[mask]
-        g = g[mask]
+    df_clean = df_clean.copy()
+    df_clean["_residuals"] = model.resid
 
-    # 5) Convert DV to numeric safely
-    y_num = pd.to_numeric(y, errors="coerce")
-    if y_num.isna().any():
-        bad = y[y_num.isna()].head(5).tolist()
-        raise ValueError(f"{dependent_variable} has non-numeric values (examples): {bad}")
+    if df_clean["_residuals"].isna().any():
+        raise ValueError(
+            "Residuals contain NaN values. "
+            "Check model specification or input data."
+        )
 
-    # 6) Treat groups as categories (string) to avoid weird numeric grouping issues
-    g = g.astype(str)
+    # Levene on residuals
+    groups = [
+        df_clean.loc[df_clean[iv] == level, "_residuals"].values
+        for level in df_clean[iv].unique()
+    ]
 
-    # 7) Group sizes + minimum size check
-    group_sizes = g.value_counts()
-    if group_sizes.shape[0] < 2:
-        raise ValueError("group_variable must have at least 2 groups")
-
-    too_small = group_sizes[group_sizes < min_group_size]
-    if not too_small.empty:
-        raise ValueError(f"Some groups have fewer than {min_group_size} observations: {too_small.to_dict()}")
-
-    # 8) Build arrays for Levene
-    levels = group_sizes.index.tolist()
-    grouped = [y_num[g == level].to_numpy() for level in levels]
-
-    # 9) Run test
-    stat, pval = levene(*grouped, center=center)
-
-    return pd.DataFrame([{
-        "test": "levene",
-        "center": center,
-        "stat": float(stat),
-        "pval": float(pval),
-        "n_groups": int(group_sizes.shape[0]),
-        "group_sizes": group_sizes.to_dict(),
-    }])
-
+    stat, p = levene(*groups, center=center)
+    return stat, p
 
 
 
