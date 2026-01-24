@@ -189,33 +189,30 @@ def run_ancova(data, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.
     return model, ancova_table
 
 
-def run_ancova_with_statsmodels_posthoc(data, dv, iv, covariate, alpha=0.05):
-    #Fit the model (using C() to ensure IV is categorical)
-    if levene_test < alpha
+def run_ancova_with_statsmodels_posthoc(data, dv, iv, covariate, levene_test=None, alpha=0.05):
+    # Check that IV has at least 3 levels
+    k = data[iv].nunique()
+    if k < 3:
+        raise ValueError(f"Post-hoc requires IV to have at least 3 levels. Found only {k} level(s).")
+    
+    # Fit the model (using C() to ensure IV is categorical)
+    if levene_test is not None and levene_test < alpha:
         model = smf.ols(f"{dv} ~ C({iv}) + {covariate}", data=data).fit(cov_type="HC3")
     else:
         model = smf.ols(f"{dv} ~ C({iv}) + {covariate}", data=data).fit()
     
-    #Perform Pairwise T-Tests (Post-hoc)
-    #term_name must match the categorical name in the model summary (usually "C(iv)")
+    # Perform Pairwise T-Tests (Post-hoc)
     posthoc = model.t_test_pairwise(term_name=f"C({iv})", method="bonferroni")
-    
-    #View the results table
-    print(posthoc.result_frame)
     
     return posthoc.result_frame
 
 
-def run_moderated_regression(df, dv, iv, covariate, levene_test, alpha = 0.05):
-    formula = f"{dv} ~ {iv} * {covariate}"
 
-    if levene_test < alpha:
-        model = smf.ols(formula=formula, data=df).fit(cov_type="HC3")
-        print("Running moderated regression test adjusted for unequal variance")
-    else:
-        model = smf.ols(formula=formula, data=df).fit()
-        print("Running moderated regression test with equal variance assumed")
 
+
+def run_moderated_regression(df, dv, iv, covariate): #No need for levene test because robust regression is always preffered
+    model = smf.ols(formula=f"{dv} ~ {iv} * {covariate}", data=df).fit(cov_type="HC3")
+    print("Running moderated regression test")
 
     #Create a table for the results
     moderated_regression_table = model.summary2().tables[1]  
@@ -225,9 +222,13 @@ def run_moderated_regression(df, dv, iv, covariate, levene_test, alpha = 0.05):
 
 
 
-def run_spotlight_analysis(df, dv, iv, covariate, levene_test, alpha = 0.05):
-
-    #Calculate the 'spots' (Mean, +1SD, -1SD)
+def run_spotlight_analysis(df, dv, iv, covariate):
+    # Check that IV has at least 3 levels
+    k = df[iv].nunique()
+    if k < 3:
+        raise ValueError(f"Spotlight analysis requires IV to have at least 3 levels. Found only {k} level(s).")
+    
+    # Calculate the 'spots' (Mean, +1SD, -1SD)
     mean_cov = df[covariate].mean()
     sd_cov = df[covariate].std()
     
@@ -239,22 +240,15 @@ def run_spotlight_analysis(df, dv, iv, covariate, levene_test, alpha = 0.05):
     
     results = []
 
-    #Run the model for each spot by centering the covariate
-    #Centering at a 'spot' makes the main effect of the IV represent 
-    #the group difference at that specific level of the covariate.
+    # Run the model for each spot by centering the covariate
     for label, value in spots.items():
-        #Center the covariate at the specific spot
+        # Center the covariate at the specific spot
         df['temp_centered'] = df[covariate] - value
-        # Fit the interaction model
-        # Using HC3 for robust standard errors due to unequal variance
-        if levene_test < alpha:
-            model = smf.ols(f"{dv} ~ {iv} * temp_centered", data=df).fit(cov_type='HC3')
-        if levene_test > alpha:
-            model = smf.ols(f"{dv} ~ {iv} * temp_centered", data=df).fit()
         
-        # Extract the coefficient and stats for the IV (the group difference)
-        # Note: If IV is categorical, statsmodels uses 'IV[T.GroupName]'
-        # We find the row that matches your IV name
+        # Fit the interaction model using robust SEs
+        model = smf.ols(f"{dv} ~ {iv} * temp_centered", data=df).fit(cov_type='HC3')
+        
+        # Extract the coefficient and stats for the IV
         iv_row = [row for row in model.params.index if iv in row and ':' not in row and 'Intercept' not in row][0]
         
         results.append({
@@ -268,6 +262,4 @@ def run_spotlight_analysis(df, dv, iv, covariate, levene_test, alpha = 0.05):
 
     # Display Results
     results_df = pd.DataFrame(results)
-    print("Spotlight Analysis (Simple Slopes)")
-    print(results_df.to_string(index=False))
     return results_df
