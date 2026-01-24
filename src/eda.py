@@ -5,10 +5,7 @@ from typing import Any, Dict, Optional, Sequence
 import pandas as pd
 
 
-# ------------------------------------------------------------
-# This helper enforces that required columns exist before any EDA step.
-# It fails fast with a clear error, so analysis does not run on wrong schemas.
-# ------------------------------------------------------------
+#  make sure the columns we need exist before starting EDA
 def assert_required_columns(df: pd.DataFrame, required_cols: Sequence[str]) -> None:
     if not isinstance(df, pd.DataFrame):
         raise TypeError("df must be a pandas DataFrame")
@@ -18,10 +15,7 @@ def assert_required_columns(df: pd.DataFrame, required_cols: Sequence[str]) -> N
         raise KeyError(f"Missing required columns: {missing}")
 
 
-# ------------------------------------------------------------
-# This helper ensures a column contains only a whitelist of allowed values.
-# It is useful after filtering, to confirm no unexpected categories remain.
-# ------------------------------------------------------------
+#  check that a column contains only expected categories (after filtering/cleaning)
 def assert_allowed_values(
     df: pd.DataFrame,
     col: str,
@@ -42,10 +36,7 @@ def assert_allowed_values(
         raise ValueError(f"Unexpected values in '{col}': {extras}")
 
 
-# ------------------------------------------------------------
-# This function returns a quick "bird's-eye view" of the dataset:
-# shape, column dtypes, and number of unique values per column.
-# ------------------------------------------------------------
+# Quick overview: number of rows/cols + dtypes + how many unique values per column
 def basic_overview(df: pd.DataFrame) -> Dict[str, Any]:
     if not isinstance(df, pd.DataFrame):
         raise TypeError("df must be a pandas DataFrame")
@@ -58,10 +49,7 @@ def basic_overview(df: pd.DataFrame) -> Dict[str, Any]:
     }
 
 
-# ------------------------------------------------------------
-# This function quantifies missing data per column (count + percent).
-# It is a standard first step in any EDA to assess data completeness.
-# ------------------------------------------------------------
+#  how many missing values per column + percent
 def missingness_table(df: pd.DataFrame, sort: bool = True) -> pd.DataFrame:
     if not isinstance(df, pd.DataFrame):
         raise TypeError("df must be a pandas DataFrame")
@@ -79,10 +67,7 @@ def missingness_table(df: pd.DataFrame, sort: bool = True) -> pd.DataFrame:
     return out
 
 
-# ------------------------------------------------------------
-# This function reports full-row duplicates (exact repeated rows).
-# Duplicates can inflate results, so we report count and percentage.
-# ------------------------------------------------------------
+# how many full duplicate rows exist 
 def duplicates_info(df: pd.DataFrame) -> Dict[str, float]:
     if not isinstance(df, pd.DataFrame):
         raise TypeError("df must be a pandas DataFrame")
@@ -94,10 +79,7 @@ def duplicates_info(df: pd.DataFrame) -> Dict[str, float]:
     return {"n_duplicate_rows": float(dup), "duplicate_pct": float(pct)}
 
 
-# ------------------------------------------------------------
-# This function summarizes numeric columns using standard descriptive stats.
-# If cols is None, it automatically selects numeric columns.
-# ------------------------------------------------------------
+# describe() for numeric columns 
 def numeric_summary(df: pd.DataFrame, cols: Optional[Sequence[str]] = None) -> pd.DataFrame:
     if not isinstance(df, pd.DataFrame):
         raise TypeError("df must be a pandas DataFrame")
@@ -107,7 +89,7 @@ def numeric_summary(df: pd.DataFrame, cols: Optional[Sequence[str]] = None) -> p
         cols = list(num_df.columns)
     else:
         assert_required_columns(df, cols)
-        # Strict: require these columns to be numeric dtype
+        # If someone passes a non-numeric column by mistake, stop early
         non_numeric = [c for c in cols if not pd.api.types.is_numeric_dtype(df[c])]
         if non_numeric:
             raise TypeError(f"Non-numeric columns passed to numeric_summary: {non_numeric}")
@@ -118,10 +100,7 @@ def numeric_summary(df: pd.DataFrame, cols: Optional[Sequence[str]] = None) -> p
     return df[list(cols)].describe().T
 
 
-# ------------------------------------------------------------
-# This function summarizes categorical columns by frequency and percentage.
-# It returns one small table per column (all categories by default).
-# ------------------------------------------------------------
+# Categorical summary: counts + percent for each category in each column
 def categorical_summary(
     df: pd.DataFrame,
     cols: Optional[Sequence[str]] = None,
@@ -131,7 +110,7 @@ def categorical_summary(
         raise TypeError("df must be a pandas DataFrame")
 
     if cols is None:
-        # "categorical" here means non-numeric columns (object/category/bool, etc.)
+        # Here we treat "categorical" as non-numeric columns
         cols = list(df.select_dtypes(exclude=["number"]).columns)
     else:
         assert_required_columns(df, cols)
@@ -148,11 +127,7 @@ def categorical_summary(
     return out
 
 
-# ------------------------------------------------------------
-# This function produces group-wise descriptives for ONE numeric column:
-# n, mean, median, and IQR for each group.
-# It is a clean EDA step before any statistical modeling.
-# ------------------------------------------------------------
+# Group descriptives: basic stats for one numeric variable, split by a group column
 def group_descriptives(
     df: pd.DataFrame,
     group_col: str,
@@ -166,7 +141,7 @@ def group_descriptives(
     if dropna:
         sub = sub.dropna(subset=[group_col, value_col])
 
-    # Strict numeric conversion: fail if any non-numeric values exist
+    # Make sure the value column is really numeric 
     try:
         sub[value_col] = pd.to_numeric(sub[value_col], errors="raise")
     except Exception as e:
@@ -189,10 +164,7 @@ def group_descriptives(
     return out
 
 
-# ------------------------------------------------------------
-# This function creates a contingency table (counts) between two categorical columns.
-# It is useful to check imbalance across groups (e.g., Sex by Stage).
-# ------------------------------------------------------------
+# Crosstab: counts between two categorical columns (for checking balance)
 def crosstab_counts(
     df: pd.DataFrame,
     row_col: str,

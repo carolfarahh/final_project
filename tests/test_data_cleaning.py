@@ -11,9 +11,7 @@ from src.data_cleaning import (
 )
 
 
-# -----------------------
-# select_columns
-# -----------------------
+
 def test_select_columns_returns_only_requested_columns():
     df = pd.DataFrame({"A": [1, 2], "B": [3, 4], "C": [5, 6]})
     out = select_columns(df, ["A", "C"])
@@ -27,9 +25,7 @@ def test_select_columns_missing_column_raises_keyerror():
         select_columns(df, ["A", "B"])
 
 
-# -----------------------
-# strip_spaces_columns
-# -----------------------
+
 def test_strip_spaces_columns_strips_whitespace():
     df = pd.DataFrame({"col1": ["  X  "], "col2": ["   Y"]})
     out = strip_spaces_columns(df, ["col1", "col2"])
@@ -43,9 +39,7 @@ def test_strip_spaces_columns_missing_column_raises_keyerror():
         strip_spaces_columns(df, ["col1", "col2"])
 
 
-# -----------------------
-# normalize_case_columns
-# -----------------------
+
 def test_normalize_case_columns_lower_converts_to_lowercase():
     df = pd.DataFrame({"Sex": ["mAlE", "FEMale"]})
     out = normalize_case_columns(df, ["Sex"], method="lower")
@@ -58,9 +52,7 @@ def test_normalize_case_columns_invalid_method_raises_valueerror():
         normalize_case_columns(df, ["Sex"], method="title")
 
 
-# -----------------------
-# gene_filter
-# -----------------------
+
 def test_gene_filter_keeps_only_requested_values():
     df = pd.DataFrame({"Gene/Factor": ["MLH1", "MSH3", "OTHER"]})
     out = gene_filter(df, "Gene/Factor", ["MLH1", "MSH3"])
@@ -73,9 +65,7 @@ def test_gene_filter_strips_df_values_before_matching():
     assert out["Gene/Factor"].tolist() == [" MLH1 ", "MSH3"]
 
 
-# -----------------------
-# convert_numeric_columns
-# -----------------------
+
 def test_convert_numeric_columns_converts_numeric_strings_to_numbers():
     df = pd.DataFrame({"Age": ["20", "30"], "DV": ["0.1", "0.2"]})
     out = convert_numeric_columns(df, ["Age", "DV"])
@@ -91,9 +81,7 @@ def test_convert_numeric_columns_coerces_invalid_values_to_nan():
     assert pd.isna(out["Age"].tolist()[2])
 
 
-# -----------------------
-# drop_missing_required
-# -----------------------
+
 def test_drop_missing_required_drops_rows_missing_required_columns():
     df = pd.DataFrame(
         {
