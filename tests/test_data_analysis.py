@@ -226,7 +226,7 @@ def test_run_moderated_regression():
     print("Moderated regression function passed validation!")
 
 
-To test a Spotlight Analysis function, we need a dataset where the effect of the Independent Variable (IV) changes depending on the level of the Covariate.In this test, I have designed the data so that there is no difference between groups when the covariate is low, but a huge difference when the covariate is high. This will allow us to verify that your function correctly identifies different $p$-values for each "spot."Python Test for Spotlight AnalysisPythonimport pandas as pd
+#To test a Spotlight Analysis function, we need a dataset where the effect of the Independent Variable (IV) changes depending on the level of the Covariate.In this test, I have designed the data so that there is no difference between groups when the covariate is low, but a huge difference when the covariate is high. This will allow us to verify that your function correctly identifies different $p$-values for each "spot."Python Test for Spotlight AnalysisPythonimport pandas as pd
 import numpy as np
 import statsmodels.formula.api as smf
 

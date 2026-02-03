@@ -186,8 +186,10 @@ else:
 # Homogeneity of slopes assumption
 
 homogeneity_of_slopes_table = check_homogeneity_of_slopes(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Age")
-p_val_homogeneity_of_slopes= anova_table.loc["C(Disease_Stage):Age", "PR(>F)"]
+p_val_homogeneity_of_slopes= homogeneity_of_slopes_table.loc["C(Disease_Stage):Age", "PR(>F)"]
 
+#ANOCA test
+# 
 p_iv  = ancova_table.loc["C(Disease_Stage)", "PR(>F)"]
 p_cov = ancova_table.loc["Age", "PR(>F)"]
 
@@ -214,13 +216,13 @@ if p_val_homogeneity_of_slopes > 0.05:
         f"Age was significantly associated with brain volume loss, p = {ancova_table_table.iloc[1]["PR(>F)"]}.")
 
     else:
-        print("An ANCOVA revealed a significant effect of disease stage on brain volume loss, " \
-        f"controlling for age, F(df₁, df₂) = X.XX, p = {p_iv}, ηp² = {ancova_table_table.iloc[0]["partial_eta_sq"]}." \ 
+        print("An ANCOVA revealed a significant effect of disease stage on brain volume loss, "
+        f"controlling for age, F(df₁, df₂) = X.XX, p = {p_iv}, ηp² = {ancova_table_table.iloc[0]["partial_eta_sq"]}."
         f"Age was also significantly associated with brain volume loss, F(1, df₂) = X.XX, p = {p_cov}.")
         print("\nPost-hoc pairwise comparisons of adjusted means were conducted using Bonferroni correction.")
         run_posthoc = True
 
-    if run_posthoc = True:
+    if run_posthoc == True :
         print("\nPost-hoc pairwise comparisons were conducted using Bonferroni correction.")
         ancova_post_hoc = run_ancova_with_statsmodels_posthoc(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Age", alpha=0.05)
     
@@ -232,17 +234,17 @@ else: #Moderated regression
     moderated_regression_results = run_moderated_regression(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Age")
 
     if "IV:Covariate" in moderated_regression_results.index and moderated_regression_results.loc["IV:Covariate", "P>|t|"] < 0.05:
-    print("Interaction significant \nRunning spotlight/simple slopes at ±1 SD of Covariate")
-    spotlight_analysis_results = run_spotlight_analysis(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Age")
+        print("Interaction significant \nRunning spotlight/simple slopes at ±1 SD of Covariate")
+        spotlight_analysis_results = run_spotlight_analysis(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Age")
 
-    print("Spotlight Analysis (Simple Slopes)\n")
-    print(spotlight_analysis_results)
+        print("Spotlight Analysis (Simple Slopes)\n")
+        print(spotlight_analysis_results)
 
     elif "IV" in moderated_regression_results.index and moderated_regression_results.loc["IV", "P>|t|"] < 0.05:
-    if df[iv].nunique() > 2:
-        print("IV main effect significant\n running pairwise post-hoc comparisons between IV levels")
-    else:
-        print("IV main effect significant\n post-hoc needed (only 2 levels)")
+        if df[iv].nunique() > 2:
+            print("IV main effect significant\n running pairwise post-hoc comparisons between IV levels")
+        else:
+            print("IV main effect significant\n post-hoc needed (only 2 levels)")
 
 
 #2 way ANOVA
@@ -258,7 +260,7 @@ two_way_anova_results = anova_model(sub_df, "Brain_Volume_Loss", "Disease_Stage"
 p_interaction = two_way_anova_results.loc['C(Sex):C(Disease_Stage)', 'PR(>F)']
 
 if p_interaction < 0.05:
-    simple_effects_and_tukey = simple_effects_tukey(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", alpha=0.05, anova_levene_p)
+    simple_effects_and_tukey = simple_effects_tukey(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", alpha=0.05, levine_test=anova_levene_p)
     print(simple_effects_and_tukey)
 else:
     additive_anova_results = anova_model(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", anova_levene_p, check_interaction= False, alpha= 0.05 )
@@ -266,11 +268,10 @@ else:
     for i in additive_anova_results ['PR(>F)']:
         main_effect_p = ['PR(>F)'][i]
         if main_effect_p < 0.05:
-            posthoc_main_effect_results = (sub_df,"Brain_Volume_Loss", "Disease_Stage",factor,main_effect_p,levene_test,alpha=0.05)
+            posthoc_main_effect_results = simple_effects_tukey(sub_df,"Brain_Volume_Loss", "Disease_Stage", factor, main_effect_p, levene_test = anova_levene_p,alpha=0.05)
 
 
 
-def posthoc_main_effect(df,dv,factor,main_effect_p,levene_test,alpha=0.05):
 
 
 
