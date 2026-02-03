@@ -3,6 +3,39 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+#####EDA###
+
+###Statistical Assumptions####
+def linearity_graph_cov_dv(x,y,linearity_r, linearity_p, dv, cov, show_plot=False, kind="hexbin"):
+
+        if show_plot == True:
+            plt.figure(figsize=(8, 5))
+        
+            if kind == "scatter":
+                # s=1 makes dots tiny; alpha adds transparency to show density
+                plt.scatter(x, y, s=1, alpha=0.3, edgecolors='none', color='steelblue')
+            elif kind == "hexbin":
+                # Instead of drawing 10,000 dots, it divides the plot into a honeycomb of hexagons
+                # Bu-Pu a color gradient where light colors represent few points 
+                # and dark purple represents high density
+                hb = plt.hexbin(x, y, gridsize=50, cmap='BuPu', mincnt=1)
+
+                #Labels the column of the heat map on the side with "Count"
+                plt.colorbar(hb, label='Count')
+
+            # best-fit line (linear line)
+            m, b = np.polyfit(x, y, 1) # Conducts least squares
+            x_line = np.linspace(x.min(), x.max(), 200) #Defines boundaries of linear line
+            plt.plot(x_line, m * x_line + b, color='darkorange', linewidth=2, label='Best Fit') #Creates formula and plots the linear line
+
+            plt.xlabel(cov) #X-axis label
+            plt.ylabel(dv) #Y-axis label
+            plt.title(f"Linearity: {cov} vs {dv}\n(r={linearity_r:.2f}, p={linearity_p:.3g})") #graph title
+            plt.legend()  #helps  identify and distinguish between different data series and lines
+            plt.show() #Shows the plot
+
+###########
+
 def boxplot_two_factor(df, dv, factor_a, factor_b,
                        title=None, ylabel=None, xlabel=None,
                        figsize=(8,6), palette="Set2"):

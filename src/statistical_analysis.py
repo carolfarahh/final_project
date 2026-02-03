@@ -130,6 +130,27 @@ def quadratic_model_adjustment(df, dv, iv,covariate):
     logger.debug  ("Running quadratic model adjustment")
 
     return model
+#?????????????
+#In case of non-linear model, function fits model with quadratic covariates
+def run_quadratic_ancova(df, dv, iv, covariate):
+
+    df = df.copy() #Creates copy pf df for insurance
+
+    # Center the covariate (important for stability)
+    cov_c = f"{covariate}_c" #New column
+    cov_c_sq = f"{covariate}_c_sq" #New column
+
+    df[cov_c] = df[covariate] - df[covariate].mean() #centers the covariate (value - mean)
+    df[cov_c_sq] = df[cov_c] ** 2 #squares the centered value
+
+    #Fits the model
+    model = ols(f"{dv} ~ C({iv}) + {cov_c} + {cov_c_sq}", data=df).fit()
+
+
+    anova_table = sm.stats.anova_lm(model, typ=2) # Creates ANOVA table, and ignores interaction (typ=2)
+
+    return model, anova_table
+
 
 
 def run_ancova(data, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.05):
