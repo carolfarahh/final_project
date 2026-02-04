@@ -76,146 +76,47 @@ def check_homogeneity_of_slopes(df,DV,IV,Covariate):
     table = sm.stats.anova_lm(model, typ=3)  
     return table #Return the ANOVA table
 
-
-
-# Validation / sanity-check function (reusable)
-
-def validate_ancova_for_levene(df, dv, iv, covariate):
-    """
-    Validate data for Levene's test in ANCOVA.
-    Raises ValueError if assumptions for the test are violated.
-
-    Returns
-    -------
-    df_clean : pandas.DataFrame
-        Cleaned dataframe (rows with NaNs dropped)
-    """
-
-    # ---- Column existence ----
-    required_cols = {dv, iv, covariate}
-    missing = required_cols - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
-
-    # ---- Drop NaNs ----
-    df_clean = df[[dv, iv, covariate]].dropna()
-
-    if len(df_clean) < 3:
-        raise ValueError("Not enough observations after dropping missing values.")
-
-    # ---- IV checks ----
-    n_levels = df_clean[iv].nunique()
-    if n_levels < 2:
-        raise ValueError(
-            f"Levene's test requires at least 2 levels in '{iv}'. "
-            f"Found {n_levels}."
-        )
-
-    group_sizes = df_clean[iv].value_counts()
-    if (group_sizes < 2).any():
-        bad_levels = group_sizes[group_sizes < 2].index.tolist()
-        raise ValueError(
-            f"Each level of '{iv}' must have at least 2 observations. "
-            f"Problematic levels: {bad_levels}"
-        )
-
-    # ---- Covariate checks ----
-    if df_clean[covariate].nunique() < 2:
-        raise ValueError(
-            f"Covariate '{covariate}' has no variability (constant). "
-            "ANCOVA cannot be fitted."
-        )
-
-    return df_clean
-
-# Clean levene_ancova using the validator
-import statsmodels.formula.api as smf
-from scipy.stats import levene
-
+# Levene ANCOVA
 def levene_ancova(df, dv, iv, covariate, center='median'):
     """
     Levene's test for ANCOVA using model residuals.
+    In order to check for homogeinity of groups, unlike the ANOVA test,
+    we conduct it on the residuals.
+    If p-value is smaller than 0.05, the assumption would be violated
+
     """
 
-    # Validate input
+    # Sanity check
     df_clean = validate_ancova_for_levene(df, dv, iv, covariate)
 
     # Fit ANCOVA model
-    model = smf.ols(
-        f"{dv} ~ C({iv}) + {covariate}",
-        data=df_clean
-    ).fit()
+    model = smf.ols(f"{dv} ~ C({iv}) + {covariate}",data=df_clean).fit()
 
     df_clean = df_clean.copy()
-    df_clean["_residuals"] = model.resid
 
-    if df_clean["_residuals"].isna().any():
+    # Creates a column with residuals of each row
+    df_clean["_residuals"] = model.resid 
+
+    #Raises error in case of NaN values
+    if df_clean["_residuals"].isna().any(): 
         raise ValueError(
             "Residuals contain NaN values. "
             "Check model specification or input data."
         )
 
     # Levene on residuals
+    # Groups the values of the residuals based on the levels of the iv, and creates an array
+    # for each level
     groups = [
         df_clean.loc[df_clean[iv] == level, "_residuals"].values
         for level in df_clean[iv].unique()
     ]
-
+    # Run the levene test using skipy library
+    # The asterisk takes each item in the list and unpacks them seperately 
     stat, p = levene(*groups, center=center)
     return stat, p
-# Validation function for Two-Way ANOVA Levene
 
-def validate_two_way_anova_for_levene(df, dv, iv, factor2):
-    """
-    Validate data for Levene's test in two-way ANOVA.
-    Raises ValueError if assumptions for the test are violated.
-
-    Returns
-    -------
-    df_clean : pandas.DataFrame
-        Cleaned dataframe (rows with NaNs dropped)
-    """
-
-    # ---- Column existence ----
-    required_cols = {dv, iv, factor2}
-    missing = required_cols - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
-
-    # ---- Drop NaNs ----
-    df_clean = df[[dv, iv, factor2]].dropna()
-
-    if len(df_clean) < 4:
-        raise ValueError(
-            "Not enough observations after dropping missing values "
-            "for two-way ANOVA."
-        )
-
-    # ---- Factor level checks ----
-    for factor in (iv, factor2):
-        n_levels = df_clean[factor].nunique()
-        if n_levels < 2:
-            raise ValueError(
-                f"Factor '{factor}' must have at least 2 levels. "
-                f"Found {n_levels}."
-            )
-
-    # ---- Cell size checks (factor1 × factor2) ----
-    cell_sizes = df_clean.groupby([iv, factor2]).size()
-
-    if (cell_sizes < 2).any():
-        bad_cells = cell_sizes[cell_sizes < 2].index.tolist()
-        raise ValueError(
-            "Each factor1 × factor2 cell must contain at least "
-            "2 observations for Levene's test.\n"
-            f"Problematic cells: {bad_cells}"
-        )
-
-    return df_clean
-
-# Clean levene_two_way_anova using the validator
-from scipy.stats import levene
-
+# Levene_two_way_anova
 def levene_two_way_anova(df, dv, iv, factor2, center='median'):
 
     """
@@ -243,20 +144,25 @@ def levene_two_way_anova(df, dv, iv, factor2, center='median'):
     # The asterisk takes each item in the list and unpacks them seperately 
     stat, p = levene(*groups, center=center)
 
-    return stat, p # Returns the F and p value of the test
+    return stat, p 
 
-
+# Normality of residuals
 def check_normality_of_residuals_visual(df,DV,IV,Covariate):
-    model = ols(
-        f"{DV} ~ C({IV}) * {Covariate}",
-        data=df
-    ).fit()
+    """
+    To check for normality of residuals, we have to create a graph for all of the residuals
+    and physically check if the residuals are distributed linearly.
+    In this function, we create two graphs; Q-Q plot and Histogram, using matplotlib.pyplot library.
 
-    resid = model.resid.dropna()
+    """
+    model = ols(f"{DV} ~ C({IV}) * {Covariate}", data=df).fit() #We fit the model of ANCOVA
+
+    # We create an array of the residuals using the .resid function
+    # Just in case some of the residuals had NaN values we drop them to ensure smoother output of graphs
+    resid = model.resid.dropna() 
 
     # Histogram
     plt.figure()
-    plt.hist(resid, bins=30)
+    plt.hist(resid, bins=30) #It controls the granularity of the plot
     plt.title("Residuals Histogram")
     plt.xlabel("Residuals")
     plt.ylabel("Frequency")
@@ -264,26 +170,15 @@ def check_normality_of_residuals_visual(df,DV,IV,Covariate):
 
     # Q-Q Plot
     plt.figure()
-    sm.qqplot(resid, line="45")
+    sm.qqplot(resid, line="45") #Adds a 45-degree reference line for comparrison 
     plt.title("Q-Q Plot of Residuals")
     plt.show()
 
-    return {"n_resid": int(resid.shape[0])}
 
 
-def square_column(df, col, inplace=False):
-    """
-    Squares the values of a column.
-    If inplace=False, returns a new DataFrame.
-    """
-    if not inplace:
-        df = df.copy()
-        
-    df[col] = df[col] ** 2
-    return df
-
-
-def check_vif(df):  #checks multicollinearity, means that two or more predictors in the ANCOVA model are highly correlated with each other. 
+# Multicollinearity check
+def check_vif(df, iv, dv):
+      #checks multicollinearity, means that two or more predictors in the ANCOVA model are highly correlated with each other. 
     # Build design matrix like the model would 
     X = pd.get_dummies(df[["disease_stage", "age", "gender"]], drop_first=True) #convert CV into dummy variables so they can be used in regression.
 
@@ -301,3 +196,42 @@ def check_vif(df):  #checks multicollinearity, means that two or more predictors
     return pd.DataFrame(vifs)
 
 
+def check_vif(df, iv, covariate):
+    # Add predictors into a lost
+    predictors = [iv, covariate]
+
+    # Build design matrix
+    X_raw = df[predictors]
+    # Using the get_dummies function, it converts the categorical variable into a dummy variable with numeric 
+    # values of 1 and 0
+    X_dummies = pd.get_dummies(X_raw, drop_first=True) 
+    
+    # Adds the intercept, representing the reference group's mean when the covariate is zero
+    X = sm.add_constant(X_dummies)
+    
+    # Save the columns names into a list and also creates an array of all the values of X
+    vifs_list = []
+    cols = X.columns.tolist()
+    X_vals = X.values.astype(float)
+
+    # This loop calculates the Variance Inflation Factor (VIF) for every column in our model
+    # using variance_inflation_factor and adds the values to a dictionary 
+    for i, col in enumerate(cols):
+        vif_val = variance_inflation_factor(X_vals, i)
+        vifs_list.append({"feature": col, "vif": float(vif_val)})
+
+    # Convert to DataFrame for easier handling
+    vif_df = pd.DataFrame(vifs_list)
+
+    # We locate high VIFs (excluding 'const') and add it its own column
+    high_vif_mask = (vif_df['vif'] > 5) & (vif_df['feature'] != 'const')
+    high_vif_df = vif_df[high_vif_mask]
+
+    if not high_vif_df.empty:
+        # We extract the names of the problematic features 
+        problematic_features = high_vif_df['feature'].tolist()
+        print(f"High Multicollinearity detected in: {problematic_features}")
+    else:
+        print("Multicollinearity check passed: All VIFs are within acceptable limits.")
+
+    return vif_df
