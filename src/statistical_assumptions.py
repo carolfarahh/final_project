@@ -1,12 +1,18 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, levene
 from statsmodels.formula.api import ols
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import pearsonr
 import statsmodels.api as sm
+
+
+""" 
+    Definitions:
+    dv = dependent variable -> Brain volume loss
+    iv = independent variable -> Disease Stage 
+    cov = covariate -> Age
+    factor2 = second factor -> Sex
+"""
 
 
 
@@ -70,21 +76,7 @@ def check_homogeneity_of_slopes(df,DV,IV,Covariate):
     table = sm.stats.anova_lm(model, typ=3)  
     return table #Return the ANOVA table
 
-#Levene test for two-way ANOVA
-#Uses median instead of mean because extreme values of each level were 
-#less likely to be affected by cooks distance function
-def levene_two_way_anova(df, dv, factor1, factor2, center='median'):
-    groups = [
-        sub_df[dv].dropna().values
-        for _, sub_df in df.groupby([factor1, factor2])
-        if len(sub_df) > 1
-    ]
 
-    stat, p = levene(*groups, center=center)
-    return stat, p
-
-import statsmodels.formula.api as smf
-from scipy.stats import levene
 
 # Validation / sanity-check function (reusable)
 
@@ -173,7 +165,7 @@ def levene_ancova(df, dv, iv, covariate, center='median'):
     return stat, p
 # Validation function for Two-Way ANOVA Levene
 
-def validate_two_way_anova_for_levene(df, dv, factor1, factor2):
+def validate_two_way_anova_for_levene(df, dv, iv, factor2):
     """
     Validate data for Levene's test in two-way ANOVA.
     Raises ValueError if assumptions for the test are violated.
@@ -185,13 +177,13 @@ def validate_two_way_anova_for_levene(df, dv, factor1, factor2):
     """
 
     # ---- Column existence ----
-    required_cols = {dv, factor1, factor2}
+    required_cols = {dv, iv, factor2}
     missing = required_cols - set(df.columns)
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
     # ---- Drop NaNs ----
-    df_clean = df[[dv, factor1, factor2]].dropna()
+    df_clean = df[[dv, iv, factor2]].dropna()
 
     if len(df_clean) < 4:
         raise ValueError(
@@ -200,7 +192,7 @@ def validate_two_way_anova_for_levene(df, dv, factor1, factor2):
         )
 
     # ---- Factor level checks ----
-    for factor in (factor1, factor2):
+    for factor in (iv, factor2):
         n_levels = df_clean[factor].nunique()
         if n_levels < 2:
             raise ValueError(
@@ -209,7 +201,7 @@ def validate_two_way_anova_for_levene(df, dv, factor1, factor2):
             )
 
     # ---- Cell size checks (factor1 × factor2) ----
-    cell_sizes = df_clean.groupby([factor1, factor2]).size()
+    cell_sizes = df_clean.groupby([iv, factor2]).size()
 
     if (cell_sizes < 2).any():
         bad_cells = cell_sizes[cell_sizes < 2].index.tolist()
@@ -224,25 +216,34 @@ def validate_two_way_anova_for_levene(df, dv, factor1, factor2):
 # Clean levene_two_way_anova using the validator
 from scipy.stats import levene
 
-def levene_two_way_anova(df, dv, factor1, factor2, center='median'):
-    """
-    Levene's test for two-way ANOVA.
-    Tests equality of variances across all factor1 × factor2 cells.
-    """
+def levene_two_way_anova(df, dv, iv, factor2, center='median'):
 
-    # Validate input
+    """
+    Levene test for two-way ANOVA to check homogeneity of variance
+    Uses median instead of mean because extreme values of each level were 
+    less likely to be affected by cooks distance function.
+    In case the p-value was significant, we can understand that the variances
+    in the groups aren't equal
+    """ 
+
+
+    # We ensure that the data is in fact suitable for our levene test using 
+    # Our previous function
     df_clean = validate_two_way_anova_for_levene(
-        df, dv, factor1, factor2
-    )
+        df, dv, iv, factor2)
 
-    # Levene across all cells
+    # Converts the values of dv into a data frame, ignores the title, and groups each group by the factors,
+    # Turns each group into an array and adds it to the list of groups
     groups = [
         sub_df[dv].values
-        for _, sub_df in df_clean.groupby([factor1, factor2])
+        for _, sub_df in df_clean.groupby([iv, factor2])
     ]
 
+    # Run the levene test using skipy library
+    # The asterisk takes each item in the list and unpacks them seperately 
     stat, p = levene(*groups, center=center)
-    return stat, p
+
+    return stat, p # Returns the F and p value of the test
 
 
 def check_normality_of_residuals_visual(df,DV,IV,Covariate):
