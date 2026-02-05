@@ -260,7 +260,7 @@ two_way_anova_results = anova_model(sub_df, "Brain_Volume_Loss", "Disease_Stage"
 p_interaction = two_way_anova_results.loc['C(Sex):C(Disease_Stage)', 'PR(>F)']
 
 if p_interaction < 0.05:
-    simple_effects_and_tukey = simple_effects_tukey(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", alpha=0.05, levine_test=anova_levene_p)
+    simple_effects_and_tukey = simple_effects_tukey(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", alpha=0.05, levine_p=anova_levene_p)
     print(simple_effects_and_tukey)
 else:
     additive_anova_results = anova_model(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", anova_levene_p, check_interaction= False, alpha= 0.05 )

@@ -132,7 +132,7 @@ def test_simple_effects():
 
     # 2. Execution
     # Testing the 'equal variance' path (negative Levene)
-    results = simple_effects_tukey(df, 'Score', 'FactorA', 'FactorB', levine_test="negative")
+    results = simple_effects_tukey(df, 'Score', 'FactorA', 'FactorB', levine_p="negative")
 
     # 3. Assertions
     assert 'FactorA' in results

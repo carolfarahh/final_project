@@ -68,7 +68,12 @@ def log_transform(df,column,new_column=None,offset="auto"):
 #Extremely IMPORTANT assumption for ANCOVA test!!!!
 # Function checks whether  the homogeneity of slopes asusmption is violated or note
 # In turn measure whether there's an interaction between the independent and the covariate
-def check_homogeneity_of_slopes(df,DV,IV,Covariate):
+def check_homogeneity_of_slopes(df,dv,iv,covariate):
+
+    #Validation test 
+    assert_required_columns(df, [dv,iv,covariate])
+
+    
     #Fits model of interaction
     model = ols(f"{DV} ~ C({IV}) * {Covariate}",data=df).fit() 
 
@@ -86,7 +91,7 @@ def levene_ancova(df, dv, iv, covariate, center='median'):
 
     """
 
-    # Sanity check
+    # Validation test
     df_clean = validate_ancova_for_levene(df, dv, iv, covariate)
 
     # Fit ANCOVA model
@@ -126,8 +131,6 @@ def levene_two_way_anova(df, dv, iv, factor2, center='median'):
     In case the p-value was significant, we can understand that the variances
     in the groups aren't equal
     """ 
-
-
     # We ensure that the data is in fact suitable for our levene test using 
     # Our previous function
     df_clean = validate_two_way_anova_for_levene(
@@ -147,14 +150,16 @@ def levene_two_way_anova(df, dv, iv, factor2, center='median'):
     return stat, p 
 
 # Normality of residuals
-def check_normality_of_residuals_visual(df,DV,IV,Covariate):
+def check_normality_of_residuals_visual(df,dv,iv,covariate):
     """
     To check for normality of residuals, we have to create a graph for all of the residuals
     and physically check if the residuals are distributed linearly.
     In this function, we create two graphs; Q-Q plot and Histogram, using matplotlib.pyplot library.
 
     """
-    model = ols(f"{DV} ~ C({IV}) * {Covariate}", data=df).fit() #We fit the model of ANCOVA
+
+    assert_required_columns(df, [dv,iv,covariate])
+    model = ols(f"{dv} ~ C({iv}) * {covariate}", data=df).fit() #We fit the model of ANCOVA
 
     # We create an array of the residuals using the .resid function
     # Just in case some of the residuals had NaN values we drop them to ensure smoother output of graphs
@@ -177,26 +182,10 @@ def check_normality_of_residuals_visual(df,DV,IV,Covariate):
 
 
 # Multicollinearity check
-def check_vif(df, iv, dv):
-      #checks multicollinearity, means that two or more predictors in the ANCOVA model are highly correlated with each other. 
-    # Build design matrix like the model would 
-    X = pd.get_dummies(df[["disease_stage", "age", "gender"]], drop_first=True) #convert CV into dummy variables so they can be used in regression.
-
-        #We calculate variance inflation factor(VIF) for each predictor.
-    X = sm.add_constant(X)
-
-    vifs = []
-    cols = X.columns.tolist()
-    X_vals = X.values.astype(float)
-
-    for i, col in enumerate(cols):
-        vif_val = variance_inflation_factor(X_vals, i)
-        vifs.append({"feature": col, "vif": float(vif_val)})
-
-    return pd.DataFrame(vifs)
-
-
 def check_vif(df, iv, covariate):
+    #validation test
+    assert_required_columns(df, [iv, covariate])
+
     # Add predictors into a lost
     predictors = [iv, covariate]
 
@@ -208,7 +197,7 @@ def check_vif(df, iv, covariate):
     
     # Adds the intercept, representing the reference group's mean when the covariate is zero
     X = sm.add_constant(X_dummies)
-    
+
     # Save the columns names into a list and also creates an array of all the values of X
     vifs_list = []
     cols = X.columns.tolist()

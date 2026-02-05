@@ -18,84 +18,179 @@ from src.app_logger import logger
 
 
 #TODO: things in common between both tests: Data describe
-def factor_categorical(df, factor1, factor2):
+def factor_categorical(df, iv, factor2):
     logger.debug("Variable converted to factor")
     df = df.copy()
-    df[factor1] = df[factor1].astype("category")
+
+    # Converts variables into categorical variables
+    df[iv] = df[iv].astype("category")
     df[factor2] = df[factor2].astype("category")
+
     return df
 
 
 
-
 #TODO: TWO_WAY_ANOVA homogenous variance and welch
-def anova_model(df, dv, factor1, factor2, levene_test, check_interaction, alpha=0.05):
+def two_way_anova_test(df, dv, iv, factor2, levene_p, check_interaction, alpha=0.05):
 
-    if check_interaction == True: #defines which model to use
+    """
 
-        # Fit OLS model(Ordinary Least Squares), we define which sum of squares to includes
-        model = ols(f'{dv} ~ C({factor1}) + C({factor2}) + C({factor1}):C({factor2})', data=df).fit() #two-way factorial model
-        if levene_test < alpha: #typ=3 runs anova model with interaction
-            # if robust = hc3, it runs the test with adjustment to the group variance
-            anova_table = anova_lm(model, typ=3, robust='hc3')   
-            logger.debug("Running Two Way ANOVA with equal variances assumed")
+    Function conducts 2-Way ANOVA.
+    Based on the input of check_interaction, it conducts either an interactive model
+    or an additive model, where typ=3 -> interactive, typ=2 -> additive, while also 
+    adjesting variances in case levene's test p-value was significant, where:
+    robust='hc3'-> adjusts variance.
+    Function then returns a datafram of the ANOVA test.
+
+    
+    """
+
+    robust_type = "hc3" if levene_p < alpha else None
+
+    if check_interaction == True: #Interactive model
+
+        formula = f'{dv} ~ C({iv}) + C({factor2}) + C({iv}):C({factor2})' #Interactive model formula
+        anova_typ = 3 # Important for running interactive model in anova_lm
+
+        if robust_type != None:
+            logger.debug("Running Interactive Two Way ANOVA model adjusted for unequal variance")
         else:
-            anova_table = anova_lm(model, typ=3)
-            logger.debug("Running Two Way ANOVA adjusted for unequal variance")  
-    else:
-        model = ols( f'{dv} ~ C({factor1}) + C({factor2})', data=df).fit() #additive model, typ=2 ignores interactions
-        if levene_test < alpha:
-            anova_table = anova_lm(model, typ=2, robust='hc3')
-            logger.debug("Running Additive Two Way ANOVA adjusted for unequal variance")
-        else:
-            anova_table = anova_lm(model, typ=2)  
-            logger.debug("Running Additive Two Way ANOVA with equal variance assumed")
-    return anova_table    
+            logger.debug("Running Interactive Two Way ANOVA model with equal variances assumed")
 
-def simple_effects_tukey(df, dv, factor1, factor2, alpha=0.05, levine_test=None): 
-    #in case the interaction is significant, check simple effects
-    factors = [factor1, factor2]
+    else: #Additive model
+
+        formula = f'{dv} ~ C({iv}) + C({factor2})'
+        anova_typ = 2 # Important for running additive model in anova_lm
+
+        if robust_type != None:
+            logger.debug("Running Additive Two Way ANOVA model adjusted for unequal variance")
+        else:
+            logger.debug("Running Additive Two Way ANOVA model with equal variances assumed")
+
+    model = ols(formula, data=df).fit() 
+
+    anova_table = anova_lm(model, typ=anova_typ, robust=robust_type)
+
+    return anova_table
+
+
+
+# Two Way ANOVA post hoc
+def simple_effects_tukey(df, dv, factor1, iv, alpha=0.05, levine_p=None): 
+    """
+    
+    In case the interaction is significant, check simple effects
+
+    """
+    robust_type = "hc3" if levene_p < alpha else None
+
+    factors = [factor1, iv]
+
     results = {}
     for factor in factors:
-        #creates a new list for the values that aren't equal to the  factor we're working on, and selects the first value
+
+        # Select the other factor we're looking into, useful for conducting simple effect test
         other_factor = [f for f in factors if f != factor][0] 
 
-        #checks if factor has more than one category, which is essential for checking simple effects 
-        if df[factor].astype("category").cat.categories.size > 1: 
-            results.setdefault(factor, {})  #creates a dictionary which opens with each factor value
+        # Checks if factor has more than one categorywhich is essential for checking simple effects 
 
-            for level in df[factor].cat.categories: #goes over the levels in the factor
-                sub_df = df[df[factor] == level]
-                # Simple effect ANOVA for factor1 at this level
-                model_sub = ols(f'{dv} ~ C({other_factor})', data=sub_df).fit()                  
-                if levine_test > alpha:
-                    logger.debug("Running simple effect ANOVA with variance assumed")
-                    anova_sub = anova_lm(model_sub, typ=3)                
-                else:
-                    logger.debug("Running simple effect ANOVA adjusted for unequal variance")                    
-                    anova_sub = anova_lm(model_sub, typ=3, robust="hc3")
-                results[factor][level] = {'anova': anova_sub}
-                print(anova_sub)
-                if anova_sub.loc[f"C({other_factor})", "PR(>F)"] < 0.05:
-                    print(f"Simple effect detected significant.\n")
-                    if levine_test > alpha:
-                    # Tukey post-hoc for all pairwise comparisons of factor1
-                        logger.debug("Simple effect detected significant. Running Tukey test with equal variences assumed")                     
-                        tukey = pairwise_tukeyhsd(endog=sub_df[dv], groups=sub_df[other_factor], alpha=alpha)                    
-                        results[factor][level]['posthoc'] = tukey
-                    else:
-                        logger.debug("Simple effect detected significant. " \
-                        "Running Games-Howell test for samples in need of varience adjustment")                     
-                        gameshowell = pg.pairwise_gameshowell(data=sub_df,dv=dv,between=other_factor)
-                        results[factor][level]['posthoc'] = gameshowell
+        validation_check = validate_anova_inputs(df, dv, factors)
+
+        results.setdefault(factor, {})  #creates a dictionary which opens with each factor value
+
+        for level in df[factor].unique(): #goes over the levels in the factor
+            sub_df = df[df[factor] == level]
+
+            # Simple effect ANOVA for factor1 at this level
+
+            model_sub = ols(f'{dv} ~ C({other_factor})', data=sub_df).fit()
+
+            anova_sub = anova_lm(model_sub, typ=2, robust = robust_type)
+
+            if robust_type == None:
+                logger.debug("Running simple effect ANOVA with variance assumed")
+            else:
+                logger.debug("Running simple effect ANOVA adjusted for unequal variance")
+
+            results[factor][level] = {'anova': anova_sub}
+
     return results
+        
+                # print(anova_sub)
+            
+            #return anova_sub, other_factor, sub_df, robust_type,
+        
+
+def anova_simple_effects(df, results, factors, robust_type):
+
+    for factor in factors:
+
+        # Select the other factor we're looking into, useful for conducting simple effect test
+        other_factor = [f for f in factors if f != factor][0] 
+
+        for level in df[factor].unique():
+
+        if results[factor][level]['anova'].loc[f"C({other_factor})", "PR(>F)"] < 0.05:
+             print(f"Simple effect detected significant.\n")
+            if robust_type == None:
+            # Tukey post-hoc for all pairwise comparisons of factor1
+
+                logger.debug("Simple effect detected significant. Running Tukey test with equal variences assumed") 
+
+                tukey = pairwise_tukeyhsd(endog=sub_df[dv], groups=sub_df[other_factor], alpha=alpha)
+
+                results[factor][level]['posthoc'] = tukey
+
+            else:
+                logger.debug("Simple effect detected significant. " \
+                "Running Games-Howell test for samples in need of varience adjustment")    
+
+                gameshowell = pg.pairwise_gameshowell(data=sub_df,dv=dv,between=other_factor)
+
+                results[factor][level]['posthoc'] = gameshowell
+
+    return results
+        
+ def tukey_simple_effects(df, results, dv, factors, robust_type, alpha=0.05):
+    for factor in factors:
+        # Identify the factor being compared
+        other_factor = [f for f in factors if f != factor][0] 
+
+        for level in df[factor].unique():
+            # Pull the ANOVA p-value from the results dictionary
+            anova_res = results[factor][level]['anova']
+            p_val = anova_res.loc[f"C({other_factor})", "PR(>F)"]
+
+            if p_val < alpha:
+                print(f"Simple effect for {factor} at level {level} is significant.")
+                
+                # Re-create the subset of data for this level
+                sub_df = df[df[factor] == level]
+
+                if robust_type is None:
+                    # Equal Variances, thus we conduct Tukey
+                    logger.debug(f"Running Tukey for {other_factor} at {factor}={level}") 
+                    tukey = pairwise_tukeyhsd(endog=sub_df[dv], groups=sub_df[other_factor], alpha=alpha)
+                    results[factor][level]['posthoc'] = tukey
+                else:
+                    # Unequal Variances, thus we conduct Games-Howell
+                    logger.debug(f"Running Games-Howell for {other_factor} at {factor}={level}")    
+                    gameshowell = pg.pairwise_gameshowell(data=sub_df, dv=dv, between=other_factor)
+                    results[factor][level]['posthoc'] = gameshowell
+
+    return results
+   
 
 
-def posthoc_main_effect(df,dv,factor,main_effect_p,levene_test = None,alpha=0.05):
+
+def tukey_additive_anova(df,dv,factor,main_effect_p,robust_type, alpha = 0.05):
+
+    validate_anova_inputs(df, dv, factor)
+
     #Main effect must be significant
     if main_effect_p >= alpha:
-        logger.debug("No post-hoc tests: main effect of '{factor}'")
-        print(f"{factor} is not significant (p = {main_effect_p:.3f}).")
+        logger.debug("No post-hoc tests: main effect of '{factor}'\n 
+                     f"{factor} is not significant (p = {main_effect_p:.3f}).")
         return None
     # Two levels indicate that no post-hoc needed
     n_levels = df[factor].nunique()
@@ -103,17 +198,18 @@ def posthoc_main_effect(df,dv,factor,main_effect_p,levene_test = None,alpha=0.05
     if n_levels == 2:
         logger.debug(f"No post-hoc tests needed: '{factor}' has only two levels.")
         return None
+    
     # If we have equal variances we'll conduct tukey
-    if levene_test >= alpha:
+    if robust_type == None:
         logger.debug(f"Running Tukey HSD for '{factor} with equal variance assumed'.")
         return pairwise_tukeyhsd(endog=df[dv],groups=df[factor], alpha=alpha)
+    
     #Unequal variances Games–Howell
     else:
         print(f"Running Games–Howell for '{factor}' adjusted for unequal variance.")
         logger.debug("Running Games-Howel")
         return pg.pairwise_gameshowell(data=df,dv=dv,between=factor)
     
-#TODO: ANCOVA
 
 #Adjusted quadratic model:
 
@@ -130,26 +226,6 @@ def quadratic_model_adjustment(df, dv, iv,covariate):
     logger.debug  ("Running quadratic model adjustment")
 
     return model
-#?????????????
-#In case of non-linear model, function fits model with quadratic covariates
-def run_quadratic_ancova(df, dv, iv, covariate):
-
-    df = df.copy() #Creates copy pf df for insurance
-
-    # Center the covariate (important for stability)
-    cov_c = f"{covariate}_c" #New column
-    cov_c_sq = f"{covariate}_c_sq" #New column
-
-    df[cov_c] = df[covariate] - df[covariate].mean() #centers the covariate (value - mean)
-    df[cov_c_sq] = df[cov_c] ** 2 #squares the centered value
-
-    #Fits the model
-    model = ols(f"{dv} ~ C({iv}) + {cov_c} + {cov_c_sq}", data=df).fit()
-
-
-    anova_table = sm.stats.anova_lm(model, typ=2) # Creates ANOVA table, and ignores interaction (typ=2)
-
-    return model, anova_table
 
 
 
@@ -164,11 +240,11 @@ def run_ancova(data, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.
         model_type = "Linear ANCOVA"
     # Variance adjustment (apply to BOTH models)
     if levene_test < alpha:
+        variance_assumption = "using HC3 robust SEs"
         model = model.get_robustcov_results(cov_type="HC3")
-        print(f"Running {model_type} using HC3 robust SEs")
     else:
-        print(f"{model_type} with equal variances assumed")
-    logger.debug("Running Ancova")
+        variance_assumption = "with equal variances assumed"
+    logger.debug(f"{model_type} {variance_assumption}")
 
     # ANCOVA table
     ancova_table = sm.stats.anova_lm(model, typ=2)
@@ -180,18 +256,13 @@ def run_ancova(data, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.
     return model, ancova_table
 
 
-def run_ancova_with_statsmodels_posthoc(data, dv, iv, covariate, levene_test=None, alpha=0.05):
-    # Check that IV has at least 3 levels
-    k = data[iv].nunique()
-    if k < 3:
-        raise ValueError(f"Post-hoc requires IV to have at least 3 levels. Found only {k} level(s).")
-        
+def run_ancova_with_statsmodels_posthoc(data, model, dv, iv, covariate, levene_test=None, alpha=0.05):
     
+    df = validate_ancova_inputs(df, dv, iv, covariate)
+
     # Fit the model (using C() to ensure IV is categorical)
     if levene_test is not None and levene_test < alpha:
-        model = smf.ols(f"{dv} ~ C({iv}) + {covariate}", data=data).fit(cov_type="HC3")
-    else:
-        model = smf.ols(f"{dv} ~ C({iv}) + {covariate}", data=data).fit()
+        model = model.get_robustcov_results(cov_type="HC3")
     
     # Perform Pairwise T-Tests (Post-hoc)
     posthoc = model.t_test_pairwise(term_name=f"C({iv})", method="bonferroni")
@@ -210,16 +281,16 @@ def run_moderated_regression(df, dv, iv, covariate):
 
     #Create a table for the results
     moderated_regression_table = model.summary2().tables[1]  
-    print("\nModerated Regression Results Table")
+    logger.debug  ("Returning a moderated regression table")
     return moderated_regression_table
 
 
 
 def run_spotlight_analysis(df, dv, iv, covariate):
     # Check that IV has at least 3 levels
-    k = df[iv].nunique()
-    if k < 3:
-        raise ValueError(f"Spotlight analysis requires IV to have at least 3 levels. Found only {k} level(s).")
+    # k = df[iv].nunique()
+    # if k < 3:
+    #     raise ValueError(f"Spotlight analysis requires IV to have at least 3 levels. Found only {k} level(s).")
     
     # Calculate the 'spots' (Mean, +1SD, -1SD)
     mean_cov = df[covariate].mean()

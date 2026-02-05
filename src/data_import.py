@@ -2,8 +2,12 @@ import pandas as pd
 from pathlib import Path
 from src.app_logger import logger
 
-
+#Loading data
 def load_data(path):
+    """"
+    Returns CSV file and raises FileNotFoundError in case the CSV file was not found
+
+    """
     logger.debug("loading data")
     path_new = Path(path)
     if not path_new.exists():
