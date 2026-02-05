@@ -75,51 +75,7 @@ def two_way_anova_test(df, dv, iv, factor2, levene_p, check_interaction, alpha=0
 
 
 
-# Two Way ANOVA post hoc
-def simple_effects_tukey(df, dv, factor1, iv, alpha=0.05, levine_p=None): 
-    """
-    
-    In case the interaction is significant, check simple effects
-
-    """
-    robust_type = "hc3" if levene_p < alpha else None
-
-    factors = [factor1, iv]
-
-    results = {}
-    for factor in factors:
-
-        # Select the other factor we're looking into, useful for conducting simple effect test
-        other_factor = [f for f in factors if f != factor][0] 
-
-        # Checks if factor has more than one categorywhich is essential for checking simple effects 
-
-        validation_check = validate_anova_inputs(df, dv, factors)
-
-        results.setdefault(factor, {})  #creates a dictionary which opens with each factor value
-
-        for level in df[factor].unique(): #goes over the levels in the factor
-            sub_df = df[df[factor] == level]
-
-            # Simple effect ANOVA for factor1 at this level
-
-            model_sub = ols(f'{dv} ~ C({other_factor})', data=sub_df).fit()
-
-            anova_sub = anova_lm(model_sub, typ=2, robust = robust_type)
-
-            if robust_type == None:
-                logger.debug("Running simple effect ANOVA with variance assumed")
-            else:
-                logger.debug("Running simple effect ANOVA adjusted for unequal variance")
-
-            results[factor][level] = {'anova': anova_sub}
-
-    return results
-        
-                # print(anova_sub)
-            
-            #return anova_sub, other_factor, sub_df, robust_type,
-        
+# Two Way ANOVA post hoc        
 
 def anova_simple_effects(df, results, factors, robust_type):
 
@@ -256,7 +212,7 @@ def run_ancova(data, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.
     return model, ancova_table
 
 
-def run_ancova_with_statsmodels_posthoc(data, model, dv, iv, covariate, levene_test=None, alpha=0.05):
+def run_ancova_posthoc(data, model, dv, iv, covariate, levene_test=None, alpha=0.05):
     
     df = validate_ancova_inputs(df, dv, iv, covariate)
 
