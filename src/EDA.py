@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional, Sequence
+from validation import assert_required_columns
 
 import pandas as pd
 
@@ -72,7 +73,7 @@ def categorical_summary(
     out = {} 
     # Loops in all of the columns specifed
     for c in cols:
-        vc = df[c].value_counts 
+        vc = df[c].value_counts()
 
         # Saves total as 1 in case it's zero to prevent ZeroDivisionError
         total = float(vc.sum()) if float(vc.sum()) > 0 else 1.0 
@@ -137,3 +138,4 @@ def crosstab_counts(
 
 
     return pd.crosstab(sub[row_col], sub[col_col]) #returns a contingency table
+

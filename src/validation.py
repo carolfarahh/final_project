@@ -46,7 +46,7 @@ def assert_allowed_values(
     if extras: #In case there are extras it returns an error with the column name and the irrelevant values
         raise ValueError(f"Unexpected values in '{col}': {extras}")
     
-def validate_missing_values(df, columns_list):
+def validate_missing_values(df, columns_list=None):
     '''
     
     When conducting many mathematical equations, as well as creating visualisation for our dataset,
@@ -56,19 +56,20 @@ def validate_missing_values(df, columns_list):
     
     '''
     df_clean = df.copy()
-
-    df_clean = assert_required_columns(df_clean, columns_list)
     
     # Check if there are any NaNs in the specific columns
-    if df_clean[columns_list].isnull().values.any():
-        initial_count = len(df_clean)
-        
-        # This removes the entire row if any of the columns in columns_list have a NaN
-        df_clean = df_clean.dropna(subset=columns_list)
+    if columns_list is not None:
+        assert_required_columns(df_clean, columns_list)
 
-        #Reports the number of observations that were dropped
-        dropped_count = initial_count - len(df_clean)
-        logger.debug(f"Missing values detected. Dropped {dropped_count} rows for smoother analysis.")
+        if df_clean[columns_list].isnull().values.any():
+            initial_count = len(df_clean)
+            
+            # This removes the entire row if any of the columns in columns_list have a NaN
+            df_clean = df_clean.dropna(subset=columns_list)
+
+            #Reports the number of observations that were dropped
+            dropped_count = initial_count - len(df_clean)
+            # logger.debug(f"Missing values detected. Dropped {dropped_count} rows for smoother analysis.")
     
     return df_clean
 
@@ -88,11 +89,16 @@ def validate_variance_in_dv(df, dv):
 
 def validate_category_levels_n(df, factors_list, test):
     """
-    To conduct ANOVA or ANCOVA, the categorical variables must have at least 3 levels. Thus this function
-    raises error in case 
+
+    Minimal number of categories pert test:
+        Anova (two way): 4
+        ANCOVA: 3
+        Moderated regresssion: 2
+
     factor_list : categorical variables
     df : data frame
-    test : statistical test
+    test : statistical test 
+    options for test: anova, moderated_regression, ancova
     """
     df_clean = df.copy()
 
@@ -100,17 +106,30 @@ def validate_category_levels_n(df, factors_list, test):
     
     if test == "moderated_regression":
         minimal_k = 2
+    elif test == "anova":
+        minimal_k = 4
     else:
         minimal_k = 3
-    
-    for factor in factors_list:
-        # Check for at least 2 unique levels
-        num_categories = df[factor].nunique() 
-        if num_categories <= minimal_k:
+
+    if test == "anova":
+        k1 = df[factor[0]].nunique()
+        k2 = df[factor[1]].nunique()
+        num_categories = k1*k2
+        if num_categories < minimal_k:
             raise ValueError(
                 f"Validation Failed: Factor '{factor}' must have at least {minimal_k} categories "
                 f"to perform {test}. Found: {num_categories}."
             )
+    else:
+        for factor in factors_list:
+            # Check for at least 2 unique levels
+            num_categories = df[factor].nunique() 
+
+            if num_categories < minimal_k:
+                raise ValueError(
+                    f"Validation Failed: Factor '{factor}' must have at least {minimal_k} categories "
+                    f"to perform {test}. Found: {num_categories}."
+                )
 
     
 def validate_group_size(df, iv, factor2, test):
@@ -125,7 +144,7 @@ def validate_group_size(df, iv, factor2, test):
     '''
 
     # Sets the minimal value of number of observations per cell based on test
-    if test == anova_tukey:
+    if test == "anova_tukey":
         n_min = 5
     else:
         n_min = 2

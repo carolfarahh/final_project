@@ -206,6 +206,8 @@ def run_ancova(data, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.
         ancova_table["sum_sq"] /
         (ancova_table["sum_sq"] + ancova_table.loc["Residual", "sum_sq"])
     )
+
+
     return model, ancova_table
 
 
@@ -228,8 +230,8 @@ def run_ancova_posthoc(data, model, dv, iv, covariate, levene_test=None, alpha=0
 
 
 #No need for levene test because robust regression is always preffered
-def run_moderated_regression(df, dv, iv, covariate): 
-    model = smf.ols(formula=f"{dv} ~ {iv} * {covariate}", data=df).fit(cov_type="HC3")
+def run_moderated_regression(df, dv, iv, moderator): 
+    model = smf.ols(formula=f"{dv} ~ {iv} * {moderator}", data=df).fit(cov_type="HC3")
     logger.debug  ("Running moderated regression test")
 
     #Create a table for the results
@@ -283,8 +285,59 @@ def run_spotlight_analysis(df, dv, iv, covariate):
     return results_df
 
 
-# def ancova_test_pipeline(df):
-#     ancova_model, ancova_results = run_ancova(data, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.05)
+def ancova_test_pipeline(df, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.05):
 
-#     if ancova_results
+    ancova_model, ancova_results= run_ancova(df, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.05)
+    
+    print(ancova_results)
+
+    # Go over each effect and report significance
+    for term in ancova_results.index:
+        F_val = ancova_results.loc[term, "F"]
+        p_val = ancova_results.loc[term, "PR(>F)"]
+        eta_sq = ancova_results.loc[term, "partial_eta_sq"]
+
+        if p_val < alpha:
+            logger.debug(f"Term: {term} is significant (F = {F_val:.3f}, p = {p_val:.4f}, partial η² = {eta_sq:.3f})")
+        else:
+            logger.debug(f"Term: {term} is not significant (F = {F_val:.3f}, p = {p_val:.4f}); no effect detected.")
+    
+    iv_pvalue = ancova_results.loc[iv, "PR(>F)"]    
+    cov_pvalue = ancova_results.loc[covariate, "PR(>F)"]
+
+    if iv_pvalue < alpha and cov_pvalue >= alpha:
+        logger.debug("The effect of the IV on the dependent variable is statistically significant after controlling for the covariate.")
+        logger.debug("The covariate did not have a significant effect, so it didn’t explain much additional variance.")
+    elif iv_pvalue < alpha and cov_pvalue < alpha:
+        logger.debug("After controlling for the covariate, the independent variable significantly affected the dependent variable.") 
+        logger.debug("Additionally, the covariate itself was a significant predictor, indicating it also explains some of the variation in the outcome.")
+    elif iv_pvalue >= alpha and cov_pvalue < alpha:
+        logger.debug("After accounting for the covariate, the independent variable did not significantly influence the dependent variable.")
+        logger.debug("The covariate itself, however, was a significant predictor, explaining some of the variation in the outcome.")
+    else:
+        logger.debug("After accounting for the covariate, the independent variable did not significantly influence the dependent variable.") 
+        logger.debug("The covariate itself was also not a significant predictor, indicating that neither factor explained a meaningful portion of the variation in the outcome.")
+
+    if iv_pvalue < alpha:
+        pairwise_ttest_table = run_ancova_posthoc(df, ancova_model, dv, iv, covariate, levene_test=levene_test, alpha=0.05)
+
+        results_df = pairwise_ttest_table.summary_frame()
+
+        # Loop over rows
+        for comp, row in results_df.iterrows():
+            if row['pvalue'] < alpha:  # significance threshold
+                logger.debug(f"Significant comparison: {comp}")
+                logger.debug(f"  Mean difference: {row['mean']:.3f}")
+                logger.debug(f"  t = {row['t']:.3f}, p = {row['pvalue']:.3f}")
+                logger.debug(f"  95% CI: [{row['lower']:.3f}, {row['upper']:.3f}]")
+
+def moderated_regression_pipeline(df, dv, iv, covariate):
+    moderated_regression_assumptions_pipeline(df, dv, iv, moderator)
+    moderated_regression_results = run_moderated_regression(df, dv, iv, moderator)
+
+
+
+
+        
+
 

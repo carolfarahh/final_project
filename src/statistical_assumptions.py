@@ -369,6 +369,20 @@ def moderated_regression_assumptions_pipeline(df, dv, iv, moderator):
 
     return df_clean
 
+def anova_assumptions_pipeline(df,dv, iv, factor2):
+    df_clean = df.copy()
+    df_clean = anova_validation_pipeline (df_clean, dv, iv, factor2)
+    id_col = "Subject_ID"
+    df_clean= drop_duplicate_subjects(df_clean, id_col, keep="first")
+    levene_stat, levene_p = levene_two_way_anova(df, dv, iv, factor2, center='median')
+
+
+
+
+
+
+
+
 
 
     

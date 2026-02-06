@@ -46,14 +46,16 @@ def gene_filter(df, column, values_list, method="lower"):
         raise ValueError("method must be 'lower' or 'upper'")
     
     if method == "lower":
-        cleaned_list = [str(x).lower().strip() for x in values_list]
+        cleaned_list = [str(x).lower() for x in values_list]
     else:
-        cleaned_list = [str(x).upper().strip() for x in values_list]
+        cleaned_list = [str(x).upper() for x in values_list]
 
     # Since the DF is already standardized, we just grab the column as strings
     series = df[column].astype("string")
 
     return df[series.isin(cleaned_list)].copy() #Returns a copy of the filtered df
+
+
 
 
 # Ensures the consinuous variables' values are numeric
@@ -98,17 +100,28 @@ def clean_pipeline(
 
 def remove_influential_by_cooks(df, DV, IV, statistical_test, covariate = None, factor2 = None , check_interaction= None):
     # Build formula depending on statistical test
+    # if statistical_test == "ANOVA" :
+    #     if check_interaction == "True":
+    #         formula = f"{DV} ~ C({IV}) + C({factor2}) + C({IV}):C({factor2})"
+    #     else:
+    #         formula = f"{DV} ~ C({IV}) + C({factor2})"
+
     if statistical_test == "ANOVA":
-        if check_interaction == "True":
-            formula = f"{DV} ~ C({IV}) + C({factor2}) + C({IV}):C({factor2})"
+        if factor2 is not None:
+            if check_interaction == "True":
+                formula = f"{DV} ~ C({IV}) + C({factor2}) + C({IV}):C({factor2})"
+            else:
+                formula = f"{DV} ~ C({IV}) + C({factor2})"
         else:
-            formula = f"{DV} ~ C({IV}) + C({factor2})"
+            formula = f"{DV} ~ C({IV})"
 
     elif statistical_test == "ANCOVA":
-        formula = f"{DV} ~ C({IV}) + {covariate}"
+        if covariate is not None:
+            formula = f"{DV} ~ C({IV}) + {covariate}"
 
     elif statistical_test == "Moderated Regression":
-        formula = f"{DV} ~ C({IV}) * {covariate}"
+        if covariate is not None:
+            formula = f"{DV} ~ C({IV}) * {covariate}"
 
     else:
         raise ValueError ("Values must either be 'ANOVA', 'ANCOVA' or 'Moderated Regression'")
