@@ -160,3 +160,58 @@ def test_remove_influential_by_cooks_returns_three_outputs():
     # Check columns
     assert "DV" in cleaned.columns
     assert "IV" in cleaned.columns
+
+def test_remove_influential_by_cooks_removes_outlier():
+    df = pd.DataFrame({
+        "DV": [1, 2, 3, 4, 100],
+        "IV": ["A", "A", "B", "B", "B"]
+    })
+
+    cleaned, influential, threshold = remove_influential_by_cooks(
+        df, DV="DV", IV="IV", statistical_test="ANOVA"
+    )
+
+    # The row with 100 should be in influential
+    assert 100 in influential["DV"].values
+
+    # It should not be in cleaned
+    assert 100 not in cleaned["DV"].values
+
+
+def test_remove_influential_by_cooks_ancova():
+    df = pd.DataFrame({
+        "DV": [1, 2, 3, 4, 100],
+        "IV": ["A", "A", "B", "B", "B"],
+        "cov": [10, 20, 30, 40, 50]
+    })
+
+    cleaned, influential, threshold = remove_influential_by_cooks(
+        df, DV="DV", IV="IV", covariate="cov", statistical_test="ANCOVA"
+    )
+
+    assert isinstance(cleaned, pd.DataFrame)
+    assert isinstance(influential, pd.DataFrame)
+    assert isinstance(threshold, float)
+
+def test_remove_influential_by_cooks_moderated_regression():
+    df = pd.DataFrame({
+        "DV": [1, 2, 3, 4, 100],
+        "IV": ["A", "A", "B", "B", "B"],
+        "cov": [10, 20, 30, 40, 50]
+    })
+
+    cleaned, influential, threshold = remove_influential_by_cooks(
+        df, DV="DV", IV="IV", covariate="cov", statistical_test="Moderated Regression"
+    )
+
+    assert isinstance(cleaned, pd.DataFrame)
+    assert isinstance(influential, pd.DataFrame)
+    assert isinstance(threshold, float)
+
+def test_remove_influential_by_cooks_invalid_test():
+    df = pd.DataFrame({"DV": [1, 2], "IV": ["A", "B"]})
+
+    with pytest.raises(ValueError, match="Values must either be 'ANOVA', 'ANCOVA' or 'Moderated Regression'"):
+        remove_influential_by_cooks(df, DV="DV", IV="IV", statistical_test="t-test")
+
+
