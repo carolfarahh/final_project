@@ -53,7 +53,7 @@ def gene_filter(df, column, values_list, method="lower"):
     # Since the DF is already standardized, we just grab the column as strings
     series = df[column].astype("string")
 
-    return df[series.isin(cleaned_values_list)].copy() #Returns a copy of the filtered df
+    return df[series.isin(cleaned_list)].copy() #Returns a copy of the filtered df
 
 
 # Ensures the consinuous variables' values are numeric

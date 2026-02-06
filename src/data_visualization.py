@@ -159,3 +159,11 @@ def adjusted_means_plot(df,dv, iv, cov):
     plt.show()
 
     return pred_df.assign(adjusted_mean=means, ci_low=low, ci_high=high)
+
+
+
+    
+
+
+
+    

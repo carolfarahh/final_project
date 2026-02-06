@@ -29,13 +29,13 @@ def validate_ancova_for_levene(df, dv, iv, covariate):
     # Each group in the independent variable in ancova must have at least 2 observations
     # these lines of code check the number of values in the iv column and raises ValueError if
     # assumption is violated
-    group_sizes = df_clean[iv].value_counts()
-        if (group_sizes < 2).any():
-            bad_levels = group_sizes[group_sizes < 2].index.tolist()
-            raise ValueError(
-                f"Each level of '{iv}' must have at least 2 observations. "
-                f"Problematic levels: {bad_levels}"
-            )
+    # group_sizes = df_clean[iv].value_counts()
+    #     if (group_sizes < 2).any():
+    #         bad_levels = group_sizes[group_sizes < 2].index.tolist()
+    #         raise ValueError(
+    #             f"Each level of '{iv}' must have at least 2 observations. "
+    #             f"Problematic levels: {bad_levels}"
+    #         )
     
     
 

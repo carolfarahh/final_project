@@ -86,28 +86,28 @@ def anova_simple_effects(df, results, factors, robust_type):
 
         for level in df[factor].unique():
 
-        if results[factor][level]['anova'].loc[f"C({other_factor})", "PR(>F)"] < 0.05:
-             print(f"Simple effect detected significant.\n")
-            if robust_type == None:
-            # Tukey post-hoc for all pairwise comparisons of factor1
+            if results[factor][level]['anova'].loc[f"C({other_factor})", "PR(>F)"] < 0.05:
+                print(f"Simple effect detected significant.\n")
+                if robust_type == None:
+                # Tukey post-hoc for all pairwise comparisons of factor1
 
-                logger.debug("Simple effect detected significant. Running Tukey test with equal variences assumed") 
+                    logger.debug("Simple effect detected significant. Running Tukey test with equal variences assumed") 
 
-                tukey = pairwise_tukeyhsd(endog=sub_df[dv], groups=sub_df[other_factor], alpha=alpha)
+                    tukey = pairwise_tukeyhsd(endog=sub_df[dv], groups=sub_df[other_factor], alpha=alpha)
 
-                results[factor][level]['posthoc'] = tukey
+                    results[factor][level]['posthoc'] = tukey
 
-            else:
-                logger.debug("Simple effect detected significant. " \
-                "Running Games-Howell test for samples in need of varience adjustment")    
+                else:
+                    logger.debug("Simple effect detected significant. " \
+                    "Running Games-Howell test for samples in need of varience adjustment")    
 
-                gameshowell = pg.pairwise_gameshowell(data=sub_df,dv=dv,between=other_factor)
+                    gameshowell = pg.pairwise_gameshowell(data=sub_df,dv=dv,between=other_factor)
 
-                results[factor][level]['posthoc'] = gameshowell
+                    results[factor][level]['posthoc'] = gameshowell
 
     return results
         
- def tukey_simple_effects(df, results, dv, factors, robust_type, alpha=0.05):
+def tukey_simple_effects(df, results, dv, factors, robust_type, alpha=0.05):
     for factor in factors:
         # Identify the factor being compared
         other_factor = [f for f in factors if f != factor][0] 
@@ -137,16 +137,13 @@ def anova_simple_effects(df, results, factors, robust_type):
     return results
    
 
-
-
 def tukey_additive_anova(df,dv,factor,main_effect_p,robust_type, alpha = 0.05):
 
     validate_anova_inputs(df, dv, factor)
 
     #Main effect must be significant
     if main_effect_p >= alpha:
-        logger.debug("No post-hoc tests: main effect of '{factor}'\n 
-                     f"{factor} is not significant (p = {main_effect_p:.3f}).")
+        logger.debug("No post-hoc tests: main effect of '{factor}'\n {factor} is not significant (p = {main_effect_p:.3f}).")
         return None
     # Two levels indicate that no post-hoc needed
     n_levels = df[factor].nunique()
@@ -284,3 +281,10 @@ def run_spotlight_analysis(df, dv, iv, covariate):
     results_df = pd.DataFrame(results)
     logger.debug("Conducting spotlight analysis")
     return results_df
+
+
+# def ancova_test_pipeline(df):
+#     ancova_model, ancova_results = run_ancova(data, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.05)
+
+#     if ancova_results
+

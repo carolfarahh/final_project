@@ -2,14 +2,13 @@ from typing import Any, Sequence
 import pandas as pd
 
 ####################### Sanity Checks #######################
-# After filtering, we conduct these sanity checks to ensure that 
-# The values in our new clean dataframe go by the criterias of our research
-
-
-
-# This helper enforces that required columns exist before any EDA step
-# It fails fast with a clear error, so analysis does not run on wrong schema
-# Also hints that it shouldn't be assigned to a variable
+"""
+After filtering, we conduct these sanity checks to ensure that 
+The values in our new clean dataframe go by the criterias of our research
+This helper enforces that required columns exist before any EDA step
+It fails fast with a clear error, so analysis does not run on wrong schema
+Also hints that it shouldn't be assigned to a variable
+"""
 
 def assert_required_columns(df: pd.DataFrame, required_cols: Sequence[str]) -> None:
     if not isinstance(df, pd.DataFrame):
@@ -48,26 +47,56 @@ def assert_allowed_values(
         raise ValueError(f"Unexpected values in '{col}': {extras}")
     
 def validate_missing_values(df, columns_list):
+    '''
+    
+    When conducting many mathematical equations, as well as creating visualisation for our dataset,
+    we may run into errors if the columns contain missing data.
+    Thus, given our very large dataset, we thought it's best to drop the rows of all the missing values
+    in case they weren't dropped in the cleaning stage.
+    
+    '''
     df_clean = df.copy()
+
+    df_clean = assert_required_columns(df_clean, columns_list)
     
     # Check if there are any NaNs in the specific columns
     if df_clean[columns_list].isnull().values.any():
         initial_count = len(df_clean)
         
-        # This removes the entire row if ANY of the columns in columns_list have a NaN
+        # This removes the entire row if any of the columns in columns_list have a NaN
         df_clean = df_clean.dropna(subset=columns_list)
-        
+
+        #Reports the number of observations that were dropped
         dropped_count = initial_count - len(df_clean)
         logger.debug(f"Missing values detected. Dropped {dropped_count} rows for smoother analysis.")
     
     return df_clean
 
 def validate_variance_in_dv(df, dv):
+    """
+    
+    ANOVA, ANCOVA and moderated regression will run into an error if the dataset only contains one unique value withing
+    the dependent variable. In this function we raise an error in case there aren't at least two unique values in the column.
+    
+    """
+    df_clean = df.copy()
+    df_clean = assert_required_columns(df_clean, [dv])
+
     if df[dv].nunique() <= 1:
         raise ValueError(f"Dependent variable '{dv}' has no variation; analysis is impossible.")
-    return None
 
-def validate_category_levels_n(df, factors_list, test)
+
+def validate_category_levels_n(df, factors_list, test):
+    """
+    To conduct ANOVA or ANCOVA, the categorical variables must have at least 3 levels. Thus this function
+    raises error in case 
+    factor_list : categorical variables
+    df : data frame
+    test : statistical test
+    """
+    df_clean = df.copy()
+
+    df_clean = assert_required_columns(df, factors_list)
     
     if test == "moderated_regression":
         minimal_k = 2
@@ -85,29 +114,48 @@ def validate_category_levels_n(df, factors_list, test)
 
     
 def validate_group_size(df, iv, factor2, test):
-    
+
+    '''
+    Different tests have different minimal group sizes required for conduct certain tests.
+    This  function accepts "test" -> which refers to the type of statistical test we're conducting
+    all tests other than anova_tukey update n_min as 2 while anova_tukey updates it as 5.
+    In case there weren't enough observations per cell, the function raises ValueError
+    df: data frame, iv: independent variable (categorical and is also a factor), factor2: second categorical factor
+    test: statistical test
+    '''
+
+    # Sets the minimal value of number of observations per cell based on test
     if test == anova_tukey:
         n_min = 5
     else:
         n_min = 2
     group_sizes = df.groupby([iv, factor2]).size()
 
+    #Raises error if the group size doesn't exceed the minimal amount
     if (group_sizes < n_min).any():
         bad_cells = group_sizes[group_sizes < n_min].index.tolist()
         raise ValueError(
             f"No enough observations in cells. Can't conduct {test}.\n"
             f"Problematic cells: {bad_cells}")
-    else:
-        Return None
+
 
 def validate_variable_type (df, categorical_list=None, numeric_list=None):
+    '''
+    Certain functions such as the running of ANCOVA, ANOVA etc would raise an error 
+    if the data type is not suitable. This function ensures that the columns are the right data type
+    and converts them if needed, while also raising ValueError if the conversion is not possible.
+    categorical_list: list of all the categorical variables
+    numeric_list: list of all the numeric variables
+    df: data frame 
+    '''
     df_clean = df.copy()
+    # If categorical list is not empty, it checks their data type and converts them if necessary
     if categorical_list is not None:
         # Loops over variables in categorical lists and converts them to categorical variable
         for categorical in categorical_list:
             if df_clean[categorical].dtype.name != 'category':
                 df_clean[categorical]= df_clean[categorical].astype('category')
-
+    # If numeric list is not empty it checks their datatype and converts them to floats if necessary
     if numeric_list is not None:
         for var in numeric_list:
             if not pd.api.types.is_numeric_dtype(df_clean[var]):
@@ -131,19 +179,13 @@ def validate_variable_type (df, categorical_list=None, numeric_list=None):
 def validate_sample_size_moderated_regression(df, post_hoc = None):
     # At least 10-20 observations per predictor 
     # (IV, Mod, IV*Mod = 3 predictors) -> sample size idealy should at least be n=30
-    if post_hoc not None:
+    if post_hoc == None:
         min_size = 30 
     else:
         min_size = 20
     if len(df) < min_size:
         logger.debug(f"WARNING: Sample size (n={len(df)}) is small for moderated regression/spotlight analysis. Power may be low.")
 
-def validate_sample_size_moderated_regression(df):
-    # At least 10-20 observations per predictor 
-    # (IV, Mod, IV*Mod = 3 predictors) -> sample size idealy should at least be n=30
-    min_size =  
-    if len(df) < min_size:
-        logger.debug(f"WARNING: Sample size (n={len(df)}) is small for moderated regression. Power may be low.")
 
 
 def anova_validation_pipeline (df, dv, iv, factor2):
