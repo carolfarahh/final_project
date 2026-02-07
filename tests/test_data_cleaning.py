@@ -1,6 +1,12 @@
 import pandas as pd
 import pytest
-from data_cleaning import _require_columns, select_columns, strip_spaces_columns, normalize_case_columns, gene_filter,convert_numeric_columns, drop_missing_required, remove_influential_by_cooks
+from data_cleaning import (_require_columns,
+                        select_columns, 
+                        strip_spaces_columns, 
+                        normalize_case_columns, 
+                        gene_filter,convert_numeric_columns, 
+                        drop_missing_required, 
+                        remove_influential_by_cooks)
 
 def test_require_columns_success():
     df = pd.DataFrame({

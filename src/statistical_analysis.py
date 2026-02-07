@@ -162,7 +162,6 @@ def simple_effects_anova(df, dv, factor1, factor2, alpha=0.05):
             "Level": level,
             "F": round(f_val, 3),
             "p": round(p_val, 4),
-            "significant": sig
 
         })
 
@@ -194,9 +193,9 @@ def report_simple_effects(results_df, alpha=0.05):
         level = row["Level"]
         f_val = row["F"]
         p_val = row["p"]
-        significant = row["significant"]
+        
 
-        if significant:
+        if p_val < alpha:
             message = (
                 f"Simple effect of factor at {level}: "
                 f"F = {f_val:.3f}, p = {p_val:.4f} → Significant at alpha={alpha}"
@@ -257,14 +256,10 @@ def run_posthoc_on_significant_simple_effects(
         sub_df = df[df[iv] == level]
 
         if levene_p > alpha:
-            if second_factor is None:
-                raise ValueError("second_factor must be provided for Tukey post-hoc")
             posthoc = pairwise_tukeyhsd(endog=sub_df[dv], groups=sub_df[factor2])
             posthoc_df = pd.DataFrame(data=posthoc.summary().data[1:], columns=posthoc.summary().data[0])
 
         else:
-            if second_factor is None:
-                second_factor = factor  # Default to factor if no second factor is provided
             posthoc_df = pg.pairwise_gameshowell(data=sub_df, dv=dv, between=factor2)
 
 
@@ -274,7 +269,7 @@ def run_posthoc_on_significant_simple_effects(
 
 def additive_anova_posthoc(df,dv,factor,main_effect_p,robust_type, alpha = 0.05):
 
-    validate_anova_inputs(df, dv, factor)
+    # validate_anova_inputs(df, dv, factor)
 
     #Main effect must be significant
     if main_effect_p >= alpha:
@@ -431,9 +426,9 @@ def run_ancova(data, dv, iv, covariate, levene_test, linearity_p_value, alpha=0.
     return model, ancova_table
 
 
-def run_ancova_posthoc(data, model, dv, iv, covariate, levene_test=None, alpha=0.05):
+def run_ancova_posthoc(df, model, iv, levene_test=None, alpha=0.05):
     
-    df = validate_ancova_inputs(df, dv, iv, covariate)
+    df_clean = df.copy()
 
     # Fit the model (using C() to ensure IV is categorical)
     if levene_test is not None and levene_test < alpha:
