@@ -123,10 +123,10 @@ Model adjustments were applied when assumptions were violated (e.g., log transfo
 
 Although the results were not statistically significant, the analysis was conducted using a rigorous and assumption-aware statistical framework.
 ## Conclusions
-- Demographic variables (age and sex) did not significantly moderate brain volume loss among Huntington’s disease patients with somatic expansion.
-- Brain volume loss appears to be driven primarily by disease-specific biological mechanisms rather than demographic factors.
-- The study highlights the importance of rigorous statistical testing and assumption checking, even when results are null.
-- This analytical framework can be applied to future neurogenetic studies investigating disease modifiers.
+In this project, we tested whether age and sex change (moderate) the relationship between somatic CAG repeat expansion and brain volume loss in patients with Huntington’s disease, while accounting for disease stage.
+Using several complementary models (ANCOVA, moderated regression with an Age × Disease Stage interaction, and a two-way ANOVA for Sex × Disease Stage), we did not find significant effects of either age or sex on brain volume loss, and no interaction effects were observed. In other words, in this dataset, brain volume loss appears to be mainly related to disease-specific and genetic factors rather than to demographic differences.
+Even though the results were not statistically significant, the analysis followed a strict and transparent workflow, including data validation, outlier handling, assumption testing, and model adjustments when needed.
+Overall, the project provides a reusable Python pipeline for analyzing demographic and genetic modifiers in neurodegenerative disease data, and can be directly applied to similar studies on Huntington’s disease or related disorders.
 ## Instructions for Running the Project
 
 Prerequisites:
