@@ -1,11 +1,7 @@
-import pandas as pd
-from pathlib import Path
-from src.data_import import load_data
-from src.data_cleaning import select_columns, strip_spaces_columns, normalize_case_columns, gene_filter, convert_numeric_columns, drop_missing_required, check_influence_cooks_distance
-from src.statistical_analysis import factor_categorical
-
-from src.app_logger import logger
-
+from final_project.hh import load_data
+from final_project.src.data_cleaning import select_columns, strip_spaces_columns, normalize_case_columns, gene_filter, \
+    drop_missing_required, check_influence_cooks_distance
+from final_project.hh import factor_categorical
 
 #Import Data from CSV file
 df = load_data("/Users/carolfarah/final_projext_yas/final_project/Huntington_Disease_Dataset.csv")
@@ -25,7 +21,7 @@ sub_df = factor_categorical(sub_df, "Disease_Stage", "Sex")
 
 
 #EDA 
-from src.eda import basic_overview, missingness_table, duplicates_info
+from final_project.hh import basic_overview, missingness_table, duplicates_info
 
 #basic EDA quality checks on sub_df Here we check: (1) a quick overview, (2) missing values per column, and (3) full-row duplicates.
 
@@ -41,7 +37,7 @@ display(missingness_table(sub_df))
 print("\nDuplicates:")
 print(duplicates_info(sub_df))
 
-from src.eda import numeric_summary, categorical_summary
+from final_project.hh import numeric_summary, categorical_summary
 #Descriptive summaries Now we summarize the distribution of numeric variables (Age, Brain_Volume_Loss) 
 #and the frequency of categorical variables (Gene/Factor, Disease_Stage, Sex).
 print("Numeric summary:")
@@ -56,7 +52,7 @@ for col, table in cat.items():
 # Group summaries for the research question We summarize Brain_Volume_Loss across Disease_Stage 
 # (main factor), and then we check how Age and Sex are distributed across stages (because we will adjust for them later).
 
-from src.eda import group_descriptives, crosstab_counts
+from final_project.hh import group_descriptives, crosstab_counts
 
 print("Brain_Volume_Loss by Disease_Stage:")
 display(group_descriptives(sub_df, group_col="Disease_Stage", value_col="Brain_Volume_Loss"))
@@ -70,7 +66,7 @@ display(crosstab_counts(sub_df, row_col="Disease_Stage", col_col="Sex"))
 #Final sanity checks before moving to modeling We confirm that the 
 #dataset contains only the expected Gene/Factor values and that the key analysis columns exist.
 
-from src.eda import assert_required_columns, assert_allowed_values
+from final_project.hh import assert_required_columns, assert_allowed_values
 
 assert_required_columns(
     sub_df,
@@ -144,7 +140,7 @@ plt.ylabel("Brain_Volume_Loss")
 plt.show()
 
 #Assumptions
-from src.statistical_assumptions import check_independence_duplicates, plot_ancova_linearity, drop_duplicate_subjects, levene_test
+from final_project.hh import check_independence_duplicates, plot_ancova_linearity, drop_duplicate_subjects, levene_test
 # Independence of variables assumption
 
 independence_test = check_independence_duplicates(sub_df, "Patient_ID")
@@ -196,7 +192,7 @@ p_cov = ancova_table.loc["Age", "PR(>F)"]
 iv_sig  = p_iv  < 0.05
 cov_sig = p_cov < 0.05
 
-from src.statistical_analysis import run_ancova, run_ancova_with_statsmodels_posthoc, run_moderated_regression
+from final_project.hh import run_ancova, run_ancova_with_statsmodels_posthoc, run_moderated_regression
 
 if p_val_homogeneity_of_slopes > 0.05:
     print("The effect of the covariate Age are the same on the level of IV Disease_Stage.\n Conducting ANCOVA")
@@ -248,8 +244,8 @@ else: #Moderated regression
 
 
 #2 way ANOVA
-from src.statistical_assumptions import levene_two_way_anova
-from src.statistical_analysis import anova_model, simple_effects_tukey, posthoc_main_effect
+from final_project.hh import levene_two_way_anova
+from final_project.hh import anova_model, simple_effects_tukey, posthoc_main_effect
 
 anova_levene_stat, anova_levene_p = levene_two_way_anova(sub_df, "Brain_Volume_Loss", "Disease_Stage", "Sex", center="median")
 

@@ -277,3 +277,34 @@ def test_validate_variable_type():
     result5 = validate_variable_type(df_correct, categorical_list=["cat"], numeric_list=["num"])
     assert pd.api.types.is_categorical_dtype(result5["cat"])
     assert pd.api.types.is_numeric_dtype(result5["num"])
+
+
+def test_center_moderator():
+    # Sample dataframe
+    df = pd.DataFrame({
+        "mod": [1, 2, 3, 4, 5]
+    })
+
+    # --- Case 1: center=True ---
+    df_out, mod_col = center_moderator(df, "mod", center=True)
+
+    # Check that new column is created
+    assert mod_col == "mod_c"
+    assert "mod_c" in df_out.columns
+
+    # Check that centering is correct
+    expected_centered = df["mod"] - df["mod"].mean()
+    pd.testing.assert_series_equal(df_out["mod_c"], expected_centered)
+
+    # Original column remains unchanged
+    pd.testing.assert_series_equal(df_out["mod"], df["mod"])
+
+    # --- Case 2: center=False ---
+    df_out2, mod_col2 = center_moderator(df, "mod", center=False)
+    
+    # Column name should be original
+    assert mod_col2 == "mod"
+    
+    # No new column should be created
+    assert "mod_c" not in df_out2.columns
+

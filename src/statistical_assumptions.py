@@ -5,6 +5,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+import pandas as pd
+import pytest
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+
+
+
 
 """ 
     Definitions:
@@ -69,13 +78,9 @@ def log_transform(df,column,new_column=None,offset="auto"):
 # Function checks whether  the homogeneity of slopes asusmption is violated or note
 # In turn measure whether there's an interaction between the independent and the covariate
 def check_homogeneity_of_slopes(df,dv,iv,covariate):
-
-    #Validation test 
-    assert_required_columns(df, [dv,iv,covariate])
-
     
     #Fits model of interaction
-    model = ols(f"{DV} ~ C({IV}) * {Covariate}",data=df).fit() 
+    model = ols(f"{dv} ~ C({iv}) * {covariate}", data=df).fit() 
 
     # Given that we're checking the interaction, we create an ANOVA table
     table = sm.stats.anova_lm(model, typ=3)  
@@ -97,7 +102,7 @@ def levene_ancova(df, dv, iv, covariate, center='median'):
     """
 
     # Validation test
-    df_clean = validate_ancova_for_levene(df, dv, iv, covariate)
+    df_clean = df.copy()
 
     # Fit ANCOVA model
     model = smf.ols(f"{dv} ~ C({iv}) + {covariate}",data=df_clean).fit()
@@ -138,8 +143,7 @@ def levene_two_way_anova(df, dv, iv, factor2, center='median'):
     """ 
     # We ensure that the data is in fact suitable for our levene test using 
     # Our previous function
-    df_clean = validate_two_way_anova_for_levene(
-        df, dv, iv, factor2)
+    df_clean = df.copy()
 
     # Converts the values of dv into a data frame, ignores the title, and groups each group by the factors,
     # Turns each group into an array and adds it to the list of groups
@@ -163,7 +167,6 @@ def check_normality_of_residuals_visual(df,dv,iv,covariate):
 
     """
 
-    assert_required_columns(df, [dv,iv,covariate])
     model = ols(f"{dv} ~ C({iv}) * {covariate}", data=df).fit() #We fit the model of ANCOVA
 
     # We create an array of the residuals using the .resid function
@@ -234,8 +237,6 @@ def check_residual_normality_visual(df,dv,iv,predictor,interaction=False,center=
 
 # Multicollinearity check
 def check_vif(df, iv, covariate):
-    #validation test
-    assert_required_columns(df, [iv, covariate])
 
     # Add predictors into a lost
     predictors = [iv, covariate]
@@ -280,15 +281,15 @@ def check_vif(df, iv, covariate):
     
 
 def center_moderator(df, moderator, center=None):
-    data = df.copy()
-    if center == True:
-        data[moderator + "_c"] = data[moderator] - data[moderator].mean()
-        mod = moderator + "_c"
-
+    df_out = df.copy()
+    
+    if center:
+        df_out[moderator + "_c"] = df_out[moderator] - df_out[moderator].mean()
+        mod_col = moderator + "_c"
     else:
-        mod = moderator
-
-    return mod
+        mod_col = moderator
+    
+    return df_out, mod_col
     
 import statsmodels.formula.api as smf
 from statsmodels.stats.diagnostic import het_breuschpagan
