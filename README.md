@@ -64,21 +64,24 @@ If any validation step failed, the analysis was stopped immediately (fail-fast a
 The project is organized in a modular structure to ensure clarity, scalability, and reproducibility.
 
 ```text
-project/
-├── data/
-│   └── huntington_dataset.csv
+## Folder / Module Structure
+
+```text
+final_project/
+├── Huntington_Disease_Dataset.csv
+├── main.py
+├── README.md
 ├── src/
 │   ├── data_cleaning.py
-│   ├── eda.py
-│   ├── ancova.py
-│   ├── regression.py
-│   ├── anova.py
-│   └── utils.py
-├── notebooks/
-│   └── EDA.ipynb
-├── tests/
-├── README.md
-└── requirements.txt
+│   ├── data_import.py
+│   ├── data_visualization.py
+│   └── statistical_analysis.py
+└── tests/
+    ├── test_data_analysis.py
+    ├── test_data_cleaning.py
+    ├── test_data_import.py
+    └── test_data_visualization.py
+
 ```
 ## Analysis Pipeline (Key Stages)
 
