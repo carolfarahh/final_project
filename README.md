@@ -63,10 +63,7 @@ If any validation step failed, the analysis was stopped immediately (fail-fast a
 ## Folder / Module Structure
 The project is organized in a modular structure to ensure clarity, scalability, and reproducibility.
 
-```
-## Folder / Module Structure
-
-```
+```text
 final_project/
 ├── Huntington_Disease_Dataset.csv
 ├── main.py
@@ -147,7 +144,7 @@ Installation and Execution:
    python main.py
 
 Optional Testing:
-- To run unit tests (if included):
+- To run unit tests :
   pytest
 
 ## References
