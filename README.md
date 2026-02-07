@@ -116,11 +116,10 @@ Model adjustments were applied when assumptions were violated (e.g., log transfo
 - Testing for main effects and interaction effects.
 - Post-hoc analyses (Tukey’s HSD) conducted when appropriate.
 ## Results Summary
-- No statistically significant effects of **age** on brain volume loss were found after controlling for disease stage and somatic expansion.
-- No statistically significant effects of **sex** on brain volume loss were detected.
-- No significant interaction effects were observed in the ANCOVA or moderated regression analyses.
-- Two-way ANOVA revealed no significant main effects or interaction between sex and disease stage.
-
+To examine whether demographic variables influence brain volume loss, we applied both an ANCOVA model with age as a covariate and a two-way ANOVA testing the joint effects of sex and disease stage.
+The ANCOVA showed no significant effect of disease stage on brain volume loss after controlling for age (F(3, 36302) = 0.995, p = 0.392), and age itself was not significantly associated with brain volume loss (F(1, 36302) = 0.659, p = 0.417).
+Consistently, the two-way ANOVA revealed no significant main effects of disease stage (F(3, 36299) = 0.435, p = 0.728) or sex (F(1, 36299) = 1.160, p = 0.281), and no significant interaction between sex and disease stage (F(3, 36299) = 0.625, p = 0.599). Removing the interaction term did not change the conclusions, with both disease stage (F(3, 36302) = 0.999, p = 0.392) and sex (F(1, 36302) = 0.021, p = 0.885) remaining non-significant.
+Overall, these results indicate that, in this dataset, neither age nor sex significantly explains variation in brain volume loss beyond disease stage.
 Although the results were not statistically significant, the analysis was conducted using a rigorous and assumption-aware statistical framework.
 ## Conclusions
 In this project, we tested whether age and sex change (moderate) the relationship between somatic CAG repeat expansion and brain volume loss in patients with Huntington’s disease, while accounting for disease stage.
