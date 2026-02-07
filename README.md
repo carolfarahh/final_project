@@ -39,7 +39,7 @@ The analysis applies a **rigorous statistical framework** combining exploratory 
 - `Brain_Volume_Loss`
 - `Disease_Stage` (pre, early, middle, late)
 
-**Genetic / Biological**
+**Genetic**
 - `Gene/Factor`
   - MLH1
   - MSH3
