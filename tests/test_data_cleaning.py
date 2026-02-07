@@ -37,14 +37,14 @@ def test_select_columns_success():
 
 def test_strip_spaces_columns_success():
     df = pd.DataFrame({
-        "name": ["  Alice  ", "Bob", "  Carol"],
+        "name": ["  Adi  ", "Amani", "  Carol"],
         "city": ["  NY", "LA  ", "  Paris  "]
     })
 
     result = strip_spaces_columns(df, ["name", "city"])
 
     expected = pd.DataFrame({
-        "name": ["Alice", "Bob", "Carol"],
+        "name": ["Adi", "Amani", "Carol"],
         "city": ["NY", "LA", "Paris"]
     }).astype("string")
 
@@ -52,14 +52,14 @@ def test_strip_spaces_columns_success():
 
 def test_normalize_case_columns_lower():
     df = pd.DataFrame({
-        "name": ["Alice", "BOB", "Carol"],
+        "name": ["Adi", "AMANI", "Carol"],
         "city": ["NY", "la", "Paris"]
     })
 
     result = normalize_case_columns(df, ["name", "city"], method="lower")
 
     expected = pd.DataFrame({
-        "name": pd.Series(["alice", "bob", "carol"], dtype="string"),
+        "name": pd.Series(["adi", "amani", "carol"], dtype="string"),
         "city": pd.Series(["ny", "la", "paris"], dtype="string")
     })
 

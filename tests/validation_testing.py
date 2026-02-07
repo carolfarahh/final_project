@@ -1,8 +1,25 @@
 
 import pandas as pd
 import pytest
-from validation import assert_allowed_values, assert_required_columns, validate_missing_values, validate_variance_in_dv, validate_category_levels_n, validate_group_size, validate_variable_type
-from app_logger import logger
+# from src.validation import assert_allowed_values, assert_required_columns, validate_missing_values, validate_variance_in_dv, validate_category_levels_n, validate_group_size, validate_variable_type
+# from src.app_logger import logger
+
+import sys
+from pathlib import Path
+
+# Add project root to sys.path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from src.validation import (
+    assert_allowed_values,
+    assert_required_columns,
+    validate_missing_values,
+    validate_variance_in_dv,
+    validate_category_levels_n,
+    validate_group_size,
+    validate_variable_type,
+)
+
 
 
 def test_assert_required_columns():
@@ -12,12 +29,12 @@ def test_assert_required_columns():
         "C": [7, 8, 9]
     })
 
-    # --- Case 1: All columns present ---
+    # Case 1: All columns present ---
     # Should not raise any exception
     assert_required_columns(df, ["A", "B"])
     assert_required_columns(df, ["A", "B", "C"])
 
-    # --- Case 2: Some columns missing ---
+    # Case 2: Some columns missing ---
     with pytest.raises(KeyError, match="Missing required columns:"):
         assert_required_columns(df, ["A", "D"])  # D is missing
 
@@ -35,17 +52,17 @@ def test_assert_allowed_values():
         "Color": ["red", "blue", "green", "red", None]
     })
 
-    # --- Case 1: All values allowed (dropna=True) ---
+    # Case 1: All values allowed (dropna=True) ---
     assert_allowed_values(df, col="Color", allowed_values=["red", "blue", "green"])
 
-    # --- Case 2: Some unexpected values (dropna=True) ---
+    # Case 2: Some unexpected values (dropna=True) ---
     df2 = pd.DataFrame({
         "Color": ["red", "blue", "yellow", "green"]
     })
     with pytest.raises(ValueError, match="Unexpected values in 'Color'"):
         assert_allowed_values(df2, col="Color", allowed_values=["red", "blue", "green"])
 
-    # --- Case 3: Unexpected value with dropna=False (NaN included) ---
+    # Case 3: Unexpected value with dropna=False (NaN included) ---
     df3 = pd.DataFrame({
         "Color": ["red", "blue", None, "green", "pink"]
     })
@@ -53,14 +70,14 @@ def test_assert_allowed_values():
         assert_allowed_values(df3, col="Color", allowed_values=["red", "blue", "green"], dropna=False)
     assert "pink" in str(e.value)
 
-    # --- Case 4: Column missing ---
+    # Case 4: Column missing ---
     df_missing = pd.DataFrame({
         "Other": [1, 2, 3]
     })
     with pytest.raises(KeyError):
         assert_allowed_values(df_missing, col="Color", allowed_values=["red", "blue"])
 
-    # --- Case 5: dropna=True ignores NaN ---
+    # Case 5: dropna=True ignores NaN ---
     df_nan = pd.DataFrame({
         "Color": ["red", "blue", None]
     })
@@ -70,7 +87,7 @@ def test_assert_allowed_values():
 
 
 def test_validate_missing_values():
-    # --- Case 1: No missing values ---
+    # Case 1: No missing values ---
     df = pd.DataFrame({
         "A": [1, 2, 3],
         "B": [4, 5, 6],
@@ -81,7 +98,7 @@ def test_validate_missing_values():
         result[col] = result[col].astype("int64") 
     pd.testing.assert_frame_equal(result.reset_index(drop=True), df.reset_index(drop=True))
 
-    # --- Case 2: Some missing values ---
+    # Case 2: Some missing values ---
     df2 = pd.DataFrame({
         "A": [1, 2, None, 4],
         "B": [4, None, 6, 7],
@@ -125,7 +142,7 @@ def test_validate_variance_in_dv():
     # Should not raise any error
     validate_variance_in_dv(df, dv="DV")
 
-    # --- Case 2: No variation in DV ---
+    # Case 2: No variation in DV ---
     df_no_var = pd.DataFrame({
         "DV": [5, 5, 5, 5],
         "IV": ["A", "A", "B", "B"]
@@ -133,7 +150,7 @@ def test_validate_variance_in_dv():
     with pytest.raises(ValueError, match="Dependent variable 'DV' has no variation"):
         validate_variance_in_dv(df_no_var, dv="DV")
 
-    # --- Case 3: Missing DV column ---
+    # Case 3: Missing DV column ---
     df_missing = pd.DataFrame({
         "X": [1, 2, 3]
     })
@@ -150,7 +167,7 @@ def test_validate_category_levels_n():
     # Should not raise error
     validate_category_levels_n(df, factors_list=["Factor1", "Factor2"], test="ANOVA")
 
-    # --- Case 2: Too few categories for ANOVA/ANCOVA ---
+    # Case 2: Too few categories for ANOVA/ANCOVA ---
     df2 = pd.DataFrame({
         "Factor1": ["A", "B", "A", "B"],  # only 2 levels
         "Factor2": ["X", "Y", "X", "Y"]   # only 2 levels
@@ -158,7 +175,7 @@ def test_validate_category_levels_n():
     with pytest.raises(ValueError, match="Validation Failed: Factor 'Factor1' must have at least 3 categories"):
         validate_category_levels_n(df2, factors_list=["Factor1"], test="ANOVA")
 
-    # --- Case 3: Too few categories for moderated_regression (min 2) ---
+    # Case 3: Too few categories for moderated_regression (min 2) ---
     df3 = pd.DataFrame({
         "Factor1": ["A", "A", "B", "B"]  # 2 levels, which is enough
     })
@@ -192,7 +209,7 @@ def test_validate_group_size():
     with pytest.raises(ValueError, match="Problematic cells"):
         validate_group_size(df2, iv="IV", factor2="Factor2", test="ANOVA")
 
-    # --- Case 3: anova_tukey requires n_min=5 ---
+    # Case 3: anova_tukey requires n_min=5 ---
     df3 = pd.DataFrame({
         "IV": ["A"]*4 + ["B"]*5,
         "Factor2": ["X"]*4 + ["Y"]*5,
@@ -202,7 +219,7 @@ def test_validate_group_size():
     with pytest.raises(ValueError, match="Problematic cells"):
         validate_group_size(df3, iv="IV", factor2="Factor2", test="anova_tukey")
 
-    # --- Case 4: anova_tukey with sufficient group size ---
+    # Case 4: anova_tukey with sufficient group size ---
     df4 = pd.DataFrame({
         "IV": ["A"]*5 + ["B"]*5,
         "Factor2": ["X"]*5 + ["Y"]*5,
@@ -222,7 +239,7 @@ def test_validate_variable_type():
         "cat2": ["X", "Y", "X", "Y"]
     })
 
-    # --- Case 1: Convert cat1 and cat2 to categorical, num1 to numeric ---
+    # Case 1: Convert cat1 and cat2 to categorical, num1 to numeric ---
     result = validate_variable_type(
         df,
         categorical_list=["cat1", "cat2"],
@@ -234,25 +251,25 @@ def test_validate_variable_type():
     assert pd.api.types.is_numeric_dtype(result["num1"])
     assert pd.api.types.is_numeric_dtype(result["num2"])  # already numeric
 
-    # --- Case 2: Numeric column already numeric ---
+    # Case 2: Numeric column already numeric ---
     result2 = validate_variable_type(df, numeric_list=["num2"])
     assert pd.api.types.is_numeric_dtype(result2["num2"])
 
-    # --- Case 3: Categorical passed as numeric → should raise ValueError ---
+    # Case 3: Categorical passed as numeric → should raise ValueError ---
     df_invalid = pd.DataFrame({
         "cat": ["A", "B", "C"]
     }) 
     with pytest.raises(ValueError, match="Validation Failed: Variable 'cat' could not be converted to numeric values"):
         validate_variable_type(df_invalid, numeric_list=["cat"])
 
-    # --- Case 4: Non-convertible numeric column → should raise ValueError ---
+    # Case 4: Non-convertible numeric column → should raise ValueError ---
     df_nonconvert = pd.DataFrame({
         "num": ["a", "b", "c"]
     })
     with pytest.raises(ValueError, match="Variable 'num' could not be converted to numeric"):
         validate_variable_type(df_nonconvert, numeric_list=["num"])
 
-    # --- Case 5: Columns already correct type (no error) ---
+    # Case 5: Columns already correct type (no error) ---
     df_correct = pd.DataFrame({
         "cat": pd.Series(["X", "Y"], dtype="category"),
         "num": pd.Series([1.0, 2.0])
