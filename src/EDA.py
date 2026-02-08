@@ -1,28 +1,28 @@
 from typing import Any, Dict, Optional, Sequence
-from validation import assert_required_columns
+from src.validation import assert_required_columns
+from src.app_logger import logger
 
 import pandas as pd
 
 
 ####################### Exploratory Data Analysis #######################
 
-
 # This function reports full-row duplicates (exact repeated rows).
 # Duplicates can inflate results, so we report count and percentage.
-def duplicates_info(df: pd.DataFrame) -> Dict[str, float]:
+def duplicates_info(df):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("df must be a pandas DataFrame") 
 
     n = int(len(df)) #Counts the number of rows in data frame
     dup = int(df.duplicated().sum()) #Sums the duplicated rows
     pct = (dup / n) * 100 if n > 0 else 0.0 # To prevent a ZeroDivisionError we assign the percentile variable 0.0
-
+    logger.debug("Gathering duplicates info")
     return {"n_duplicate_rows": float(dup), "duplicate_pct": float(pct)}
 
 
 # This function summarizes numeric columns using standard descriptive stats.
 # If cols is None, it automatically selects numeric columns.
-def numeric_summary(df: pd.DataFrame, cols: Optional[Sequence[str]] = None) -> pd.DataFrame:
+def numeric_summary(df, cols) :
     if not isinstance(df, pd.DataFrame):
         raise TypeError("df must be a pandas DataFrame")
 
@@ -42,32 +42,23 @@ def numeric_summary(df: pd.DataFrame, cols: Optional[Sequence[str]] = None) -> p
 
     # In case all the columns stand by the criterias (numeric)
     # Descriptive statistics are returned
+    logger.debug("Creating df with descriptive statistics")
     return df[list(cols)].describe().T 
 
 
 # This function summarizes categorical columns by frequency and percentage.
 # It returns one small table per column (all categories by default).
 
-def categorical_summary(
-    df: pd.DataFrame,
-    cols: Optional[Sequence[str]] = None,) -> Dict[str, pd.DataFrame]:
-
-    if not isinstance(df, pd.DataFrame):
-        raise TypeError("df must be a pandas DataFrame")
-
-    if cols is None:
-        # "categorical" here means non-numeric columns (object/category/bool, etc.)
-        # Python selects all categorical columns in case no columns were inputed
-        cols = list(df.select_dtypes(exclude=["number"]).columns)
-    else:
-        assert_required_columns(df, cols)
-        
-        # Check if any numeric columns were accidentally passed with the same logic as the previous function
-        numeric_cols = [c for c in cols if pd.api.types.is_numeric_dtype(df[c])]
-        if numeric_cols:
-            raise TypeError(
-                f"Numeric columns passed to categorical_summary: {numeric_cols}. "
-                "Use numeric_summary() for these instead.")
+def categorical_summary(df,cols):
+# Validate input
+    assert_required_columns(df, cols)
+    
+    # Check if any numeric columns were accidentally passed with the same logic as the previous function
+    numeric_cols = [c for c in cols if pd.api.types.is_numeric_dtype(df[c])]
+    if numeric_cols:
+        raise TypeError(
+            f"Numeric columns passed to categorical_summary: {numeric_cols}. "
+            "Use numeric_summary() for these instead.")
                     
     # A variable as an empty dictionary containing the final putput
     out = {} 
@@ -81,18 +72,14 @@ def categorical_summary(
         pct = (vc / total) * 100
 
         out[c] = pd.DataFrame({"count": vc, "pct": pct}) #Converts the dictionary to a dataframe for easier use
-
+    logger.debug("Conducting categorical summary")
     return out #Returns a frequency table as a DataFrame
 
 
 # This function produces group-wise descriptives for ONE numeric column:
 # n, mean, median, and IQR for each group.
 # It is a clean EDA step before any statistical modeling.
-def group_descriptives(
-    df: pd.DataFrame,
-    group_col: str,
-    value_col: str,
-) -> pd.DataFrame:
+def group_descriptives(df,group_col,value_col) :
     
     assert_required_columns(df, [group_col, value_col]) #Sanity check
 
@@ -120,22 +107,9 @@ def group_descriptives(
             "iqr": (q3 - q1).astype(float),
         }
     )
-
+    logger.debug("Creating descriptives per group")
     return out
 
 
-# This function creates a contingency table (counts) between two categorical columns.
-# Aiding us in checking the imbalance across groups 
 
-def crosstab_counts(
-    df: pd.DataFrame,
-    row_col: str,
-    col_col: str,
-) -> pd.DataFrame:
-    assert_required_columns(df, [row_col, col_col])
-
-    sub = df[[row_col, col_col]].copy() #Creates a sub df where it selects the columns we're comparing
-
-
-    return pd.crosstab(sub[row_col], sub[col_col]) #returns a contingency table
 

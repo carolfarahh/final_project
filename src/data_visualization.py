@@ -1,12 +1,56 @@
-
-
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import statsmodels.formula.api as smf
+from statsmodels.formula.api import ols
+import statsmodels.api as sm
+from src.app_logger import logger
+
+
 
 #####EDA###
+#Boxplot of Brain Volume Loss across Disease Stages This plot helps visualize differences in 
+# the distribution of Brain_Volume_Loss between disease stages (median, spread, and potential outliers).
+def eda_plots(df):
+    plt.figure()
+    df.boxplot(column="Brain_Volume_Loss", by="Disease_Stage")
+    plt.title("Brain_Volume_Loss by Disease_Stage")
+    plt.suptitle("")  # removes the automatic pandas subtitle
+    plt.xlabel("Disease_Stage")
+    plt.ylabel("Brain_Volume_Loss")
+    plt.xticks(rotation=20)
+    plt.show()
+    #Histogram of Brain Volume Loss This plot shows 
+    #the overall distribution of Brain_Volume_Loss to check skewness and potential outliers.
+    plt.figure()
+    plt.hist(df["Brain_Volume_Loss"], bins=30)
+    plt.title("Distribution of Brain_Volume_Loss")
+    plt.xlabel("Brain_Volume_Loss")
+    plt.ylabel("Count")
+    plt.show()
+    #Scatter plot (Age vs Brain Volume Loss) with transparency This scatter plot visualizes 
+    # the relationship between Age and Brain_Volume_Loss. Because the dataset is large, many 
+    # points overlap; therefore, we use transparency (alpha) to reduce overplotting and make the density of points easier to interpret.
+    plt.figure()
+    plt.scatter(df["Age"], df["Brain_Volume_Loss"], s=8, alpha=0.2)
+    plt.title("Age vs Brain_Volume_Loss (alpha=0.2)")
+    plt.xlabel("Age")
+    plt.ylabel("Brain_Volume_Loss")
+    plt.show()
+    #Boxplot of Brain Volume Loss by Sex This plot compares the distribution of Brain_Volume_Loss between sexes 
+    #(median and spread), which supports the “adjust for Sex” part of the research question.
+    plt.figure()
+    df.boxplot(column="Brain_Volume_Loss", by="Sex")
+    plt.title("Brain_Volume_Loss by Sex")
+    plt.suptitle("")
+    plt.xlabel("Sex")
+    plt.ylabel("Brain_Volume_Loss")
+    plt.show()
 
 ###Statistical Assumptions####
-def linearity_graph_cov_dv(x,y,linearity_r, linearity_p, dv, cov, show_plot=False, kind="hexbin"):
+def linearity_graph_cov_dv(x,y,linearity_r, linearity_p, dv, cov, show_plot=None, kind="hexbin"):
 
         if show_plot == True:
             plt.figure(figsize=(8, 5))
@@ -34,7 +78,38 @@ def linearity_graph_cov_dv(x,y,linearity_r, linearity_p, dv, cov, show_plot=Fals
             plt.legend()  #helps  identify and distinguish between different data series and lines
             plt.show() #Shows the plot
 
+
+def check_normality_of_residuals_visual(df,dv,iv,covariate):
+    """
+    To check for normality of residuals, we have to create a graph for all of the residuals
+    and physically check if the residuals are distributed linearly.
+    In this function, we create two graphs; Q-Q plot and Histogram, using matplotlib.pyplot library.
+
+    """
+
+    model = ols(f"{dv} ~ C({iv}) * {covariate}", data=df).fit() #We fit the model of ANCOVA
+
+    # We create an array of the residuals using the .resid function
+    # Just in case some of the residuals had NaN values we drop them to ensure smoother output of graphs
+    resid = model.resid.dropna() 
+
+    # Histogram
+    plt.figure()
+    plt.hist(resid, bins=30) #It controls the granularity of the plot
+    plt.title("Residuals Histogram")
+    plt.xlabel("Residuals")
+    plt.ylabel("Frequency")
+    plt.show()
+
+    # Q-Q Plot
+    plt.figure()
+    sm.qqplot(resid, line="45") #Adds a 45-degree reference line for comparrison 
+    plt.title("Q-Q Plot of Residuals")
+    plt.show()
+
 ###########
+
+#ANOVA graph
 
 def boxplot_two_factor(df, dv, factor_a, factor_b,
                        title=None, ylabel=None, xlabel=None,
@@ -56,83 +131,9 @@ def boxplot_two_factor(df, dv, factor_a, factor_b,
     plt.tight_layout()
     plt.show()
 
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-def plot_ancova_linearity(df, dv="Brain_Volume_Loss", iv="Disease_Stage", cov="Age"):
-    """
-    Visualizes the relationship between a covariate (Age) and DV (Brain Volume)
-    broken down by IV groups (Disease Stage).
-    """
-    plt.figure(figsize=(10, 6))
-    
-    # Use Seaborn's lmplot to handle the 10k points and multiple regression lines
-    # scatter_kws={'s': 1} makes the 10k dots tiny
-    # alpha=0.3 helps with overlap density
-    sns.scatterplot(
-        data=df, 
-        x=cov, 
-        y=dv, 
-        hue=iv, 
-        s=2, 
-        alpha=0.3, 
-        edgecolor=None,
-        palette="viridis"
-    )
-    
-    # Adding separate regression lines for each group to check for "Parallel Slopes"
-    # This is the visual check for the 'homogeneity of regression slopes' assumption.
-    unique_stages = df[iv].unique()
-    colors = plt.cm.viridis(np.linspace(0, 1, len(unique_stages)))
-    
-    for stage, color in zip(unique_stages, colors):
-        subset = df[df[iv] == stage]
-        if len(subset) > 1:
-            m, b = np.polyfit(subset[cov], subset[dv], 1)
-            x_range = np.array([subset[cov].min(), subset[cov].max()])
-            plt.plot(x_range, m * x_range + b, color=color, lw=2, label=f'Fit: {stage}')
-
-    plt.title(f"ANCOVA Check: {dv} vs {cov} by {iv}")
-    plt.xlabel(f"{cov} (Covariate)")
-    plt.ylabel(f"{dv} (Dependent Variable)")
-    plt.legend(title=iv, bbox_to_anchor=(1.05, 1), loc='upper left')
-    plt.grid(True, linestyle='--', alpha=0.5)
-    plt.tight_layout()
-    plt.show()
-
-# To use it:
-# plot_ancova_linearity(your_dataframe)
-
-import matplotlib.pyplot as plt
-
-def two_way_boxplot(df, dv="Brain_Volume_Loss", factor1="Disease_Stage", factor2="Sex"):
-    groups = []
-    labels = []
-
-    for a in sorted(df[factor1].dropna().unique()):
-        for b in sorted(df[factor2].dropna().unique()):
-            vals = df[(df[factor1] == a) & (df[factor2] == b)][dv].dropna().astype(float).values
-            if len(vals) > 0:
-                groups.append(vals)
-                labels.append(f"{a}-{b}")
-
-    plt.figure(figsize=(10, 5))
-    plt.boxplot(groups, labels=labels, showfliers=True)
-    plt.xlabel(f"{factor1} × {factor2}")
-    plt.ylabel(dv)
-    plt.title(f"Box Plot of {dv} by {factor1} and {factor2}")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.show()
 
 
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import statsmodels.formula.api as smf
-
+#ANCOVA 
 def adjusted_means_plot(df,dv, iv, cov):
     # Fit ANCOVA model
     model = smf.ols(f"{dv} ~ C({iv}) + {cov}", data=df).fit()
@@ -158,9 +159,51 @@ def adjusted_means_plot(df,dv, iv, cov):
     plt.title(f"Adjusted Means by {iv} (Age fixed at mean={age_mean:.2f})")
     plt.show()
 
-    return pred_df.assign(adjusted_mean=means, ci_low=low, ci_high=high)
+#Moderated regression
+def adjusted_means_plot_moderated(df, dv, iv, moderator):
 
+    # Fit moderated regression model
+    model = smf.ols(f"{dv} ~ C({iv}) * {moderator}", data=df).fit()
 
+    # Define moderator levels: mean, +/- 1 SD
+    mod_mean = df[moderator].mean()
+    mod_sd = df[moderator].std()
+    mod_levels = [mod_mean - mod_sd, mod_mean, mod_mean + mod_sd]
+    mod_labels = ["-1 SD", "Mean", "+1 SD"]
+
+    # Get unique IV levels
+    iv_levels = df[iv].unique()
+
+    # Build prediction table
+    pred_list = []
+    for m in mod_levels:
+        for iv_level in iv_levels:
+            pred_list.append({iv: iv_level, moderator: m})
+    pred_df = pd.DataFrame(pred_list)
+
+    # Get predicted means + CI
+    pred = model.get_prediction(pred_df).summary_frame()
+    pred_df["mean"] = pred["mean"]
+    pred_df["low"] = pred["mean_ci_lower"]
+    pred_df["high"] = pred["mean_ci_upper"]
+    pred_df["mod_label"] = np.repeat(mod_labels, len(iv_levels))
+
+    # Plot
+    plt.figure(figsize=(8, 5))
+    for m_label in mod_labels:
+        df_plot = pred_df[pred_df["mod_label"] == m_label]
+        x = np.arange(len(iv_levels))
+        plt.errorbar(
+            x, df_plot["mean"], 
+            yerr=[df_plot["mean"] - df_plot["low"], df_plot["high"] - df_plot["mean"]],
+            fmt="o-", capsize=5, label=m_label
+        )
+    plt.xticks(np.arange(len(iv_levels)), iv_levels)
+    plt.xlabel(iv)
+    plt.ylabel(f"Predicted {dv}")
+    plt.title(f"Adjusted Means by {iv} at Moderator Levels ({moderator})")
+    plt.legend(title=moderator)
+    plt.show()
 
     
 

@@ -5,7 +5,6 @@ import numpy as np
 from scipy.stats import levene
 from statsmodels.stats.diagnostic import het_breuschpagan
 from src.statistical_assumptions import homoscedasticity_test_moderated_regression
-
 from src.validation import assert_required_columns
 from src.statistical_assumptions import (drop_duplicate_subjects,
                                          check_linearity_predictor_dv,
@@ -23,11 +22,8 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 
 def test_drop_duplicate_subjects():
-    # ---------- Case 1: keep="first" ----------
-    df_first = pd.DataFrame({
-        "Subject_ID": [1, 1, 2, 3, 3],
-        "score": [10, 20, 30, 40, 50]
-    })
+    #  Case 1: keep="first" 
+    df_first = pd.DataFrame({"Subject_ID": [1, 1, 2, 3, 3],"score": [10, 20, 30, 40, 50]})
 
     result_first = drop_duplicate_subjects(df_first, id_col="Subject_ID", keep="first")
 
@@ -36,18 +32,15 @@ def test_drop_duplicate_subjects():
     assert result_first.loc[result_first["Subject_ID"] == 1, "score"].iloc[0] == 10
     assert result_first.loc[result_first["Subject_ID"] == 3, "score"].iloc[0] == 40
 
-    # ---------- Case 2: keep="last" ----------
-    df_last = pd.DataFrame({
-        "Subject_ID": [1, 1, 2],
-        "score": [10, 20, 30]
-    })
+    #  Case 2: keep="last" 
+    df_last = pd.DataFrame({"Subject_ID": [1, 1, 2],"score": [10, 20, 30]})
 
     result_last = drop_duplicate_subjects(df_last, id_col="Subject_ID", keep="last")
 
     assert len(result_last) == 2
     assert result_last.loc[result_last["Subject_ID"] == 1, "score"].iloc[0] == 20
 
-    # ---------- Case 3: no duplicates ----------
+    #  Case 3: no duplicates 
     df_no_dupes = pd.DataFrame({
         "Subject_ID": [1, 2, 3],
         "score": [10, 20, 30]
@@ -56,37 +49,26 @@ def test_drop_duplicate_subjects():
     result_no_dupes = drop_duplicate_subjects(df_no_dupes, id_col="Subject_ID")
 
     assert len(result_no_dupes) == 3
-    pd.testing.assert_frame_equal(result_no_dupes.reset_index(drop=True),
-                                  df_no_dupes.reset_index(drop=True))
+    pd.testing.assert_frame_equal(result_no_dupes.reset_index(drop=True), df_no_dupes.reset_index(drop=True))
 
-    # ---------- Case 4: missing ID column ----------
-    df_missing = pd.DataFrame({
-        "score": [10, 20, 30]
-    })
-
+    #  Case 4: missing ID column 
+    df_missing = pd.DataFrame({"score": [10, 20, 30]})
     with pytest.raises(ValueError, match="Column 'Subject_ID' not found"):
         drop_duplicate_subjects(df_missing, id_col="Subject_ID")
 
 def test_check_linearity_predictor_dv_basic():
     # Create a simple linear relationship
-    df = pd.DataFrame({
-        "predictor": [1, 2, 3, 4, 5],
-        "dv": [2, 4, 6, 8, 10]
-    })
+    df = pd.DataFrame({"predictor": [1, 2, 3, 4, 5],"dv": [2, 4, 6, 8, 10]})
 
-    x, y, r, p = check_linearity_predictor_dv(
-        df=df,
-        dv="dv",
-        predictor="predictor"
-    )
+    x, y, r, p = check_linearity_predictor_dv(df=df,dv="dv",predictor="predictor")
 
-    # --- Type checks ---
+    # Type checks
     assert isinstance(x, np.ndarray)
     assert isinstance(y, np.ndarray)
     assert isinstance(r, float)
     assert isinstance(p, float)
 
-    # --- Value checks ---
+    # Value checks 
     assert len(x) == len(df)
     assert len(y) == len(df)
 
@@ -120,7 +102,7 @@ def log_transform(df,column,new_column=None,offset="auto"):
     return df_out, offset_used
 
 def test_log_transform_all_cases():
-    # ---------- Case 1: auto offset with negative values ----------
+    #  Case 1: auto offset with negative values 
     df_neg = pd.DataFrame({"x": [-2, -1, 0, 1, 2]})
 
     df_out, offset_used = log_transform(df_neg, column="x")
@@ -130,7 +112,7 @@ def test_log_transform_all_cases():
     assert np.isfinite(df_out["log_x"]).all()
     pd.testing.assert_series_equal(df_neg["x"], df_out["x"])  # original unchanged
 
-    # ---------- Case 2: manual offset + custom column name ----------
+    #  Case 2: manual offset + custom column name 
     df_pos = pd.DataFrame({"x": [1, 2, 3, 4]})
 
     df_out, offset_used = log_transform(
@@ -147,7 +129,7 @@ def test_log_transform_all_cases():
     expected = np.log(df_pos["x"] + 10)
     np.testing.assert_allclose(df_out["x_log"], expected)
 
-    # ---------- Case 3: auto offset when no offset is needed ----------
+    #  Case 3: auto offset when no offset is needed 
     df_no_offset = pd.DataFrame({"x": [1, 2, 3]})
 
     df_out, offset_used = log_transform(df_no_offset, column="x")
@@ -175,8 +157,6 @@ def test_check_homogeneity_of_slopes():
     # p-value is between 0 and 1
     assert 0 <= p_val <= 1, "p-value must be between 0 and 1"
 
-
-
 def test_levene_ancova():
     # Create synthetic data
     np.random.seed(42)
@@ -185,23 +165,17 @@ def test_levene_ancova():
         "iv": ["A", "B"] * 10,
         "covariate": np.linspace(1, 10, 20)
     })
-
     # Run the function
-    stat, p = levene_ancova(df, dv="dv", iv="iv", covariate="covariate", center="median")
+    p = levene_ancova(df, dv="dv", iv="iv", covariate="covariate", center="median")
 
     # Assertions
-    assert isinstance(stat, float), "Levene statistic should be a float"
     assert isinstance(p, float), "Levene p-value should be a float"
     assert 0 <= p <= 1, "p-value must be between 0 and 1"
 
 def test_levene_two_way_anova():
     # Synthetic data
     np.random.seed(42)
-    df = pd.DataFrame({
-        "dv": np.random.normal(10, 2, 20),
-        "iv": ["A", "B"] * 10,
-        "factor2": ["X", "Y"] * 10
-    })
+    df = pd.DataFrame({"dv": np.random.normal(10, 2, 20),"iv": ["A", "B"] * 10,"factor2": ["X", "Y"] * 10})
 
     # Ignore the validation and run the main logic
     groups = [sub_df["dv"].values for _, sub_df in df.groupby(["iv", "factor2"])]
@@ -233,10 +207,7 @@ def test_check_vif_low_and_high():
     assert result_low is False, "VIF check should pass when multicollinearity is low"
 
     # High multicollinearity scenario
-    df_high = pd.DataFrame({
-        "iv": ["A", "B", "A", "B"],
-        "covariate": [1, 2, 1, 2]  # Perfect correlation
-    })
+    df_high = pd.DataFrame({"iv": ["A", "B", "A", "B"],"covariate": [1, 2, 1, 2]})
     
     # Expect True because VIF should detect high multicollinearity
     result_high = check_vif(df_high, iv="iv", covariate="covariate")

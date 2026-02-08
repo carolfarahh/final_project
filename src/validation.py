@@ -1,5 +1,6 @@
 from typing import Any, Sequence
 import pandas as pd
+from src.app_logger import logger
 
 ####################### Sanity Checks #######################
 """
@@ -10,145 +11,69 @@ It fails fast with a clear error, so analysis does not run on wrong schema
 Also hints that it shouldn't be assigned to a variable
 """
 
-def assert_required_columns(df: pd.DataFrame, required_cols: Sequence[str]) -> None:
+def assert_required_columns(df, required_cols):
     if not isinstance(df, pd.DataFrame):
         raise TypeError("df must be a pandas DataFrame")
-
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
         raise KeyError(f"Missing required columns: {missing}")
 
-
 # This helper ensures a column contains only a whitelist of allowed values.
 # It is useful after filtering, to confirm no unexpected categories remain.
 
-def assert_allowed_values(
-    df: pd.DataFrame,
-    col: str,
-    allowed_values: Sequence[Any],
-    dropna: bool = True,
-) -> None:
-    assert_required_columns(df, [col]) #Uses the previous function to ensure that the column mentioned exists
+def assert_allowed_values(df,col,allowed_values,dropna):
 
     s = df[col] #s for series
     if dropna:
         s = s.dropna() #Drops the missing values from our new series
-
     # Presents the unique values of our series in our original dataframe while also standerdizing the values
     present = set(s.astype(str).unique().tolist()) 
-    
     # Presents the unique values of our column in our original dataframe while also standerdizing the values
     allowed = set(pd.Series(list(allowed_values)).astype(str).unique().tolist())
-
     #Creates a list with all the unexpected values that aren't relevant to our research 
     extras = sorted(list(present - allowed))
-
     if extras: #In case there are extras it returns an error with the column name and the irrelevant values
         raise ValueError(f"Unexpected values in '{col}': {extras}")
     
 def validate_missing_values(df, columns_list=None):
-    '''
-    
-    When conducting many mathematical equations, as well as creating visualisation for our dataset,
-    we may run into errors if the columns contain missing data.
-    Thus, given our very large dataset, we thought it's best to drop the rows of all the missing values
-    in case they weren't dropped in the cleaning stage.
-    
-    '''
-    df_clean = df.copy()
-    
+    df_clean = df.copy() 
     # Check if there are any NaNs in the specific columns
     if columns_list is not None:
-        assert_required_columns(df_clean, columns_list)
-
         if df_clean[columns_list].isnull().values.any():
             initial_count = len(df_clean)
-            
             # This removes the entire row if any of the columns in columns_list have a NaN
             df_clean = df_clean.dropna(subset=columns_list)
-
             #Reports the number of observations that were dropped
             dropped_count = initial_count - len(df_clean)
             # logger.debug(f"Missing values detected. Dropped {dropped_count} rows for smoother analysis.")
     
     return df_clean
 
-def validate_variance_in_dv(df, dv):
-    """
-    
-    ANOVA, ANCOVA and moderated regression will run into an error if the dataset only contains one unique value withing
-    the dependent variable. In this function we raise an error in case there aren't at least two unique values in the column.
-    
-    """
+def validate_variance_in_dv(df, dv): #Structurally ensures that the dv isn't a constant
     df_clean = df.copy()
-    df_clean = assert_required_columns(df_clean, [dv])
-
-    if df[dv].nunique() <= 1:
+    if df_clean[dv].nunique() <= 1:
         raise ValueError(f"Dependent variable '{dv}' has no variation; analysis is impossible.")
 
-
-def validate_category_levels_n(df, factors_list, test):
-    """
-
-    Minimal number of categories pert test:
-        Anova (two way): 4
-        ANCOVA: 3
-        Moderated regresssion: 2
-
-    factor_list : categorical variables
-    df : data frame
-    test : statistical test 
-    options for test: anova, moderated_regression, ancova
-    """
+#Structurally ensures that the number of categories is enough to run the required test (they all have a minimum of 2 categories)
+def validate_category_levels_n(df, factors_list): 
     df_clean = df.copy()
-
-    df_clean = assert_required_columns(df, factors_list)
-    
-    if test == "moderated_regression":
-        minimal_k = 2
-    elif test == "anova":
-        minimal_k = 4
-    else:
-        minimal_k = 3
-
-    if test == "anova":
-        k1 = df[factor[0]].nunique()
-        k2 = df[factor[1]].nunique()
-        num_categories = k1*k2
-        if num_categories < minimal_k:
-            raise ValueError(
-                f"Validation Failed: Factor '{factor}' must have at least {minimal_k} categories "
-                f"to perform {test}. Found: {num_categories}."
-            )
-    else:
-        for factor in factors_list:
-            # Check for at least 2 unique levels
-            num_categories = df[factor].nunique() 
-
-            if num_categories < minimal_k:
-                raise ValueError(
-                    f"Validation Failed: Factor '{factor}' must have at least {minimal_k} categories "
-                    f"to perform {test}. Found: {num_categories}."
-                )
+    for factor in factors_list:
+        # Check for at least 2 unique levels
+        num_categories = df_clean[factor].nunique() 
+        if num_categories < 2:
+            raise ValueError( f"Validation Failed: Factor '{factor}' must have at least 2 categories ")
 
     
 def validate_group_size(df, iv, factor2, test):
-
-    '''
-    Different tests have different minimal group sizes required for conduct certain tests.
-    This  function accepts "test" -> which refers to the type of statistical test we're conducting
-    all tests other than anova_tukey update n_min as 2 while anova_tukey updates it as 5.
-    In case there weren't enough observations per cell, the function raises ValueError
-    df: data frame, iv: independent variable (categorical and is also a factor), factor2: second categorical factor
-    test: statistical test
-    '''
-
     # Sets the minimal value of number of observations per cell based on test
     if test == "anova_tukey":
         n_min = 5
     else:
         n_min = 2
-    group_sizes = df.groupby([iv, factor2]).size()
+    if factor2:
+        group_sizes = df.groupby([iv, factor2]).size()
+    else:
+        group_sizes = df.groupby(iv).size()
 
     #Raises error if the group size doesn't exceed the minimal amount
     if (group_sizes < n_min).any():
@@ -159,14 +84,6 @@ def validate_group_size(df, iv, factor2, test):
 
 
 def validate_variable_type (df, categorical_list=None, numeric_list=None):
-    '''
-    Certain functions such as the running of ANCOVA, ANOVA etc would raise an error 
-    if the data type is not suitable. This function ensures that the columns are the right data type
-    and converts them if needed, while also raising ValueError if the conversion is not possible.
-    categorical_list: list of all the categorical variables
-    numeric_list: list of all the numeric variables
-    df: data frame 
-    '''
     df_clean = df.copy()
     # If categorical list is not empty, it checks their data type and converts them if necessary
     if categorical_list is not None:
@@ -180,19 +97,12 @@ def validate_variable_type (df, categorical_list=None, numeric_list=None):
             if not pd.api.types.is_numeric_dtype(df_clean[var]):
                 # Raise error if the user accidentally passed a categorical column as a numeric one
                 if pd.api.types.is_categorical_dtype(df_clean[var]):
-                    raise ValueError(
-                        f"Validation Failed: Variable '{var}' is categorical, but was expected to be numeric/continuous."
-                    )
-                
+                    raise ValueError(f"Validation Failed: Variable '{var}' is categorical, but was expected to be numeric/continuous.")
                 # Otherwise, try to convert 
                 df_clean[var] = pd.to_numeric(df_clean[var], errors='coerce')
-                
                 # Final check: if conversion resulted in all NaNs because it wasn't numeric
                 if df_clean[var].isnull().all() and len(df_clean) > 0:
-                    raise ValueError(
-                        f"Validation Failed: Variable '{var}' could not be converted to numeric values."
-                    )
-    
+                    raise ValueError(f"Validation Failed: Variable '{var}' could not be converted to numeric values.")
     return df_clean
 
 def validate_sample_size_moderated_regression(df, post_hoc = None):
@@ -212,7 +122,7 @@ def anova_validation_pipeline (df, dv, iv, factor2):
     assert_required_columns(df_copy, [dv, iv, factor2])
     df_copy = validate_missing_values(df_copy, [dv, iv, factor2])
     validate_variance_in_dv(df_copy, dv)
-    validate_category_levels_n(df_copy, [iv, factor2], "anova")
+    validate_category_levels_n(df_copy, [iv, factor2])
     validate_group_size(df_copy, iv, factor2, "anova")
     df_copy = validate_variable_type(df_copy, [iv, factor2], [dv])
     return df_copy
@@ -222,7 +132,7 @@ def anova_tukey_pipeline (df, dv, iv, factor2):
     assert_required_columns(df_copy, [dv, iv, factor2])
     df_copy = validate_missing_values(df_copy, [dv, iv, factor2])
     validate_variance_in_dv(df_copy, dv)
-    validate_category_levels_n(df_copy, [iv, factor2], "anova_tukey")
+    validate_category_levels_n(df_copy, [iv, factor2])
     validate_group_size(df_copy, iv, factor2, "anova_tukey")
     df_copy = validate_variable_type(df_copy, [iv, factor2], [dv])
     return df_copy
@@ -239,8 +149,8 @@ def ancova_validation_pipeline(df, dv, iv, covariate):
     assert_required_columns(df_copy, [dv, iv, covariate])
     df_copy = validate_missing_values(df_copy, [dv, iv, covariate])
     validate_variance_in_dv(df_copy, dv)
-    validate_category_levels_n(df_copy, [iv], "ancova")
-    validate_group_size(df_copy, iv, "ancova")
+    validate_category_levels_n(df_copy, [iv])
+    validate_group_size(df_copy, iv, factor2=None,test = "ancova")
     df_copy = validate_variable_type(df_copy, [iv], [dv, covariate])
     return df_copy
 
@@ -249,9 +159,9 @@ def moderated_regression_validation_pipeline(df, dv, iv, moderator):
     assert_required_columns(df_copy, [dv, iv, moderator])
     df_copy = validate_missing_values(df_copy, [dv, iv, moderator])
     validate_variance_in_dv(df_copy, dv)
-    validate_category_levels_n(df_copy, [iv], "moderated_regression")
+    validate_category_levels_n(df_copy, [iv])
     validate_sample_size_moderated_regression(df, post_hoc=None)
-    validate_group_size(df_copy, iv, "moderated_regression")
+    validate_group_size(df_copy, iv, factor2=None, test = "moderated_regression")
     df_copy = validate_variable_type(df_copy, [iv], [dv, moderator])
     return df_copy
 
@@ -260,9 +170,9 @@ def moderated_regression_validation_pipeline(df, dv, iv, moderator):
     assert_required_columns(df_copy, [dv, iv, moderator])
     df_copy = validate_missing_values(df_copy, [dv, iv, moderator])
     validate_variance_in_dv(df_copy, dv)
-    validate_category_levels_n(df_copy, [iv], "moderated_regression")
+    validate_category_levels_n(df_copy, [iv])
     validate_sample_size_moderated_regression(df, post_hoc=True)
-    validate_group_size(df_copy, iv, "moderated_regression")
+    validate_group_size(df_copy, iv, factor2=None, test = "moderated_regression")
     df_copy = validate_variable_type(df_copy, [iv], [dv, moderator])
     return df_copy
 

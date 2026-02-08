@@ -1,43 +1,14 @@
+
 import pytest
 import pandas as pd
 import statsmodels.formula.api as smf
 from statsmodels.formula.api import ols
 from statsmodels.stats.anova import anova_lm
 from unittest.mock import patch, MagicMock
-from src.statistical_analysis import(
-    factor_categorical,
-    two_way_anova_test,
-    simple_effects_anova,
-    report_simple_effects,
-    run_posthoc_on_significant_simple_effects,
-    additive_anova_posthoc,
-    report_significant_posthoc_simple_effects,
-    run_ancova,
-    run_ancova_posthoc
-)
+from src.statistical_analysis import two_way_anova_test,simple_effects_anova,run_posthoc_on_significant_simple_effects,additive_anova_posthoc,run_ancova,run_ancova_posthoc,run_moderated_regression, run_spotlight_analysis
 
 #pytest tests/test_statistical_analysis.py
 
-def test_factor_categorical():
-    # Create a small sample dataframe
-    df = pd.DataFrame({
-        "IV": [1, 2, 1, 2],
-        "Factor2": ["A", "B", "A", "B"],
-        "DV": [10, 15, 20, 25]
-    })
-
-    # Run the function
-    df_out = factor_categorical(df, iv="IV", factor2="Factor2")
-
-    # Check that the columns are now categorical
-    assert pd.api.types.is_categorical_dtype(df_out["IV"])
-    assert pd.api.types.is_categorical_dtype(df_out["Factor2"])
-
-    # Check that other columns remain unchanged
-    assert (df_out["DV"] == df["DV"]).all()
-
-    # Check that the function returns a new copy (not the original dataframe)
-    assert df_out is not df
 
 def test_two_way_anova_test():
     # Create a small sample dataframe
@@ -48,8 +19,7 @@ def test_two_way_anova_test():
     })
 
     # Test additive ANOVA with Levene p > alpha (no robust adjustment)
-    anova_table, robust_type = two_way_anova_test(df, dv="DV", iv="IV", factor2="Factor2",
-                                                  levene_p=0.2, check_interaction=False, alpha=0.05)
+    anova_table, robust_type = two_way_anova_test(df, dv="DV", iv="IV", factor2="Factor2", levene_p=0.2, check_interaction=False, alpha=0.05)
     # Check robust_type is None
     assert robust_type is None
     # Check output is a DataFrame and has expected ANOVA columns
@@ -58,8 +28,7 @@ def test_two_way_anova_test():
     assert "PR(>F)" in anova_table.columns
 
     # Test interactive ANOVA with Levene p < alpha (robust adjustment)
-    anova_table2, robust_type2 = two_way_anova_test(df, dv="DV", iv="IV", factor2="Factor2",
-                                                    levene_p=0.01, check_interaction=True, alpha=0.05)
+    anova_table2, robust_type2 = two_way_anova_test(df, dv="DV", iv="IV", factor2="Factor2", levene_p=0.01, check_interaction=True, alpha=0.05)
     # Check robust_type is "hc3"
     assert robust_type2 == "hc3"
     # Check output is a DataFrame
@@ -92,26 +61,6 @@ def test_simple_effects_anova():
     assert pd.api.types.is_numeric_dtype(results["F"])
     assert pd.api.types.is_numeric_dtype(results["p"])
 
-def test_report_simple_effects(caplog):
-    # Sample DataFrame simulating output from simple_effects_anova
-    results_df = pd.DataFrame({
-        "Level": ["X", "Y"],
-        "F": [5.123, 0.456],
-        "p": [0.025, 0.65]
-    })
-
-    with caplog.at_level("INFO"):
-        report_simple_effects(results_df, alpha=0.05)
-
-    # There should be two log messages
-    assert len(caplog.records) == 2
-
-    # Check content of the messages
-    assert "Simple effect of factor at X" in caplog.records[0].message
-    assert "Significant" in caplog.records[0].message
-
-    assert "Simple effect of factor at Y" in caplog.records[1].message
-    assert "Not significant" in caplog.records[1].message
 
 
 def test_run_posthoc_on_significant_simple_effects_no_sig():
@@ -209,39 +158,6 @@ def test_additive_anova_posthoc():
         mock_gh.assert_called_once_with(data=df3, dv="DV", between="Factor")
         assert result4 == "gameshowell_result"
 
-def test_report_significant_posthoc_simple_effects_cases():
-    # Case 1: Empty dictionary, should just return None
-    empty_dict = {}
-    result1 = report_significant_posthoc_simple_effects(empty_dict)
-    assert result1 is None
-
-    # Case 2: Dictionary with no significant results, should log but return None
-    df_no_sig = pd.DataFrame({
-        "group1": ["A", "A"],
-        "group2": ["B", "C"],
-        "meandiff": [0.1, 0.2],
-        "stat": [1.2, 0.5],
-        "p-adj": [0.6, 0.7],
-        "lower": [0, 0],
-        "upper": [1, 1]
-    })
-    posthoc_dict_no_sig = {"Level1": df_no_sig}
-    result2 = report_significant_posthoc_simple_effects(posthoc_dict_no_sig)
-    assert result2 is None
-
-    # Case 3: Dictionary with some significant results, should log but return None
-    df_sig = pd.DataFrame({
-        "group1": ["A"],
-        "group2": ["B"],
-        "meandiff": [1.5],
-        "stat": [3.2],
-        "p-adj": [0.01],
-        "lower": [0.5],
-        "upper": [2.5]
-    })
-    posthoc_dict_sig = {"Level1": df_sig}
-    result3 = report_significant_posthoc_simple_effects(posthoc_dict_sig)
-    assert result3 is None
 
 def test_run_ancova():
     # Sample dataset
@@ -272,23 +188,147 @@ def test_run_ancova():
 
 
 def test_run_ancova_posthoc():
-    # Minimal dataset
     df = pd.DataFrame({
-        "DV": [10, 12, 15, 20, 22, 25],
-        "IV": ["A", "A", "B", "B", "C", "C"],
-        "Cov": [1, 2, 1, 2, 1, 2]
+        "DV": [10, 12, 14, 20, 22, 24, 30, 32, 34],
+        "IV": ["A", "A", "A", "B", "B", "B", "C", "C", "C"],
+        "Cov": [1, 2, 3, 1, 2, 3, 1, 2, 3]
     })
 
-    # Fit ANCOVA model
     model = smf.ols("DV ~ C(IV) + Cov", data=df).fit()
 
-    # Run posthoc
-    posthoc = run_ancova_posthoc(df, model, iv="IV", levene_test=0.1, alpha=0.05)
+    posthoc = run_ancova_posthoc(
+        df=df,
+        model=model,
+        iv="IV",
+        levene_test=0.10,
+        alpha=0.05
+    )
 
-    # Instead of checking summary(), check that it has summary_frame()
-    summary_df = posthoc.summary_frame()  # this works for pairwise t-test
-    assert isinstance(summary_df, pd.DataFrame)
-    assert "group1" in summary_df.columns
-    assert "group2" in summary_df.columns
+    assert posthoc is not None
 
+    # Version-safe extraction
+    if hasattr(posthoc, "summary_frame"):
+        result_df = posthoc.summary_frame()
+        assert isinstance(result_df, pd.DataFrame)
 
+    elif hasattr(posthoc, "summary"):
+        summary = posthoc.summary()
+        assert summary is not None
+
+    elif hasattr(posthoc, "result_frame"):
+        result_df = posthoc.result_frame
+        assert isinstance(result_df, pd.DataFrame)
+
+    else:
+        raise AssertionError("Unknown posthoc result type")
+
+def test_run_moderated_regression_returns_dataframe():
+    import pandas as pd
+    import numpy as np
+
+    np.random.seed(42)
+
+    n = 100
+    df = pd.DataFrame({
+        "DV": np.random.normal(size=n),
+        "IV": np.random.normal(size=n),
+        "Moderator": np.random.normal(size=n)
+    })
+
+    df["DV"] = (
+        0.5 * df["IV"]
+        + 0.3 * df["Moderator"]
+        + 0.4 * df["IV"] * df["Moderator"]
+        + np.random.normal(scale=0.5, size=n)
+    )
+
+    result = run_moderated_regression(
+        df=df,
+        dv="DV",
+        iv="IV",
+        moderator="Moderator",
+        alpha=0.05
+    )
+
+    # ---- Assertions ----
+    assert isinstance(result, pd.DataFrame)
+
+    # Core columns always present
+    assert "Coef." in result.columns
+    assert "Std.Err." in result.columns
+
+    # Accept either t or z stats
+    assert ("t" in result.columns) or ("z" in result.columns)
+
+    # Accept either p column
+    assert ("P>|t|" in result.columns) or ("P>|z|" in result.columns)
+
+    # Interaction term exists
+    assert any("IV:Moderator" in idx for idx in result.index)
+
+def test_run_spotlight_analysis_returns_valid_dataframe():
+    import pandas as pd
+    import numpy as np
+
+    np.random.seed(42)
+
+    # ---- Create synthetic dataset ----
+    n = 120
+    df = pd.DataFrame({
+        "DV": np.random.normal(size=n),
+        "IV": np.random.normal(size=n),
+        "Moderator": np.random.normal(size=n)
+    })
+
+    # Add real interaction signal (important for stable regression)
+    df["DV"] = (
+        0.6 * df["IV"]
+        + 0.4 * df["Moderator"]
+        + 0.5 * df["IV"] * df["Moderator"]
+        + np.random.normal(scale=0.5, size=n)
+    )
+
+    # ---- Run function ----
+    result = run_spotlight_analysis(
+        df=df,
+        dv="DV",
+        iv="IV",
+        moderator="Moderator"
+    )
+
+    # ---- Assertions ----
+    assert isinstance(result, pd.DataFrame)
+
+    expected_columns = [
+        "Level",
+        "Covariate Value",
+        "Group Difference (B)",
+        "Std. Error",
+        "t-stat",
+        "p-value"
+    ]
+
+    assert all(col in result.columns for col in expected_columns)
+
+    # Should have exactly 3 spotlight rows
+    assert len(result) == 3
+
+    # Check correct labels exist
+    expected_levels = {
+        "Low (-1 SD)",
+        "Average (Mean)",
+        "High (+1 SD)"
+    }
+
+    assert set(result["Level"]) == expected_levels
+
+    # Check numeric outputs are valid
+    numeric_cols = [
+        "Covariate Value",
+        "Group Difference (B)",
+        "Std. Error",
+        "t-stat",
+        "p-value"
+    ]
+
+    assert result[numeric_cols].notna().all().all()

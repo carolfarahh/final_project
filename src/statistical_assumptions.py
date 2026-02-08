@@ -1,19 +1,16 @@
+import pandas as pd
 import numpy as np
 from scipy.stats import pearsonr, levene
 from statsmodels.formula.api import ols
-import pandas as pd
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
-
+from src.validation import anova_validation_pipeline , ancova_validation_pipeline, moderated_regression_validation_pipeline
 from statsmodels.stats.outliers_influence import variance_inflation_factor
-
-import pandas as pd
-import pytest
-import statsmodels.api as sm
-from statsmodels.formula.api import ols
-
-
-
+from src.data_visualization import linearity_graph_cov_dv, check_normality_of_residuals_visual
+from src.data_cleaning import remove_influential_by_cooks
+from src.app_logger import logger
+import statsmodels.formula.api as smf
+from statsmodels.stats.diagnostic import het_breuschpagan
 
 """ 
     Definitions:
@@ -129,7 +126,7 @@ def levene_ancova(df, dv, iv, covariate, center='median'):
     # Run the levene test using skipy library
     # The asterisk takes each item in the list and unpacks them seperately 
     stat, p = levene(*groups, center=center)
-    return stat, p
+    return p
 
 # Levene_two_way_anova
 def levene_two_way_anova(df, dv, iv, factor2, center='median'):
@@ -158,34 +155,6 @@ def levene_two_way_anova(df, dv, iv, factor2, center='median'):
 
     return stat, p 
 
-# Normality of residuals
-def check_normality_of_residuals_visual(df,dv,iv,covariate):
-    """
-    To check for normality of residuals, we have to create a graph for all of the residuals
-    and physically check if the residuals are distributed linearly.
-    In this function, we create two graphs; Q-Q plot and Histogram, using matplotlib.pyplot library.
-
-    """
-
-    model = ols(f"{dv} ~ C({iv}) * {covariate}", data=df).fit() #We fit the model of ANCOVA
-
-    # We create an array of the residuals using the .resid function
-    # Just in case some of the residuals had NaN values we drop them to ensure smoother output of graphs
-    resid = model.resid.dropna() 
-
-    # Histogram
-    plt.figure()
-    plt.hist(resid, bins=30) #It controls the granularity of the plot
-    plt.title("Residuals Histogram")
-    plt.xlabel("Residuals")
-    plt.ylabel("Frequency")
-    plt.show()
-
-    # Q-Q Plot
-    plt.figure()
-    sm.qqplot(resid, line="45") #Adds a 45-degree reference line for comparrison 
-    plt.title("Q-Q Plot of Residuals")
-    plt.show()
 
 
 
@@ -280,42 +249,37 @@ def check_vif(df, iv, covariate):
         return False
     
 
-def center_moderator(df, moderator, center=None):
+def center_moderator(df, moderator, center=True):
+    #Centers the moderator variable if requested. Essential for moderated regression.
+
     df_out = df.copy()
-    
+
     if center:
-        df_out[moderator + "_c"] = df_out[moderator] - df_out[moderator].mean()
-        mod_col = moderator + "_c"
+        centered_name = f"{moderator}_c"
+        df_out[centered_name] = df_out[moderator] - df_out[moderator].mean()
+        moderator_used = centered_name
     else:
-        mod_col = moderator
+        moderator_used = moderator
+
+    return df_out, moderator_used
     
-    return df_out, mod_col
-    
-import statsmodels.formula.api as smf
-from statsmodels.stats.diagnostic import het_breuschpagan
+
 
 def homoscedasticity_test_moderated_regression(df, dv, iv, moderator):
-    """
-    Fits a moderated regression model and tests homoscedasticity
-    using the Breusch–Pagan test.
-    Parameters
-    ----------
-    df : Dataframe containing variables
-    dv : str - Dependent variable name
-    iv : str - Independent variable name (can be categorical or continuous)
-    moderator : str - Moderator variable name (continuous)
-    center : bool - Whether to mean-center continuous predictors (recommended)
-
-    Returns
-    -------
-    lm p- value : Since our sample is large, it's better to focus on the the lm p-value instead
-                 of the f p-value
-    """
+    data = df.copy()
+    
+    for col in [dv, iv, moderator]:
+        if col in data.columns:
+            if data[col].dtype.name in ['string', 'category', 'object']:
+                data[col] = data[col].astype('object')
+            else:
+                data[col] = data[col].astype(float)
 
     data = df.copy()
 
     # Build formula (IV can be categorical or continuous)
-    formula = f"{dv} ~ C({iv}) * {mod}" 
+    # formula = f"{dv} ~ C({iv}) * {moderator}"
+    formula = f"Q('{dv}') ~ Q('{iv}') * Q('{moderator}')" 
 
     # Fit model
     model = smf.ols(formula, data=data).fit()
@@ -326,54 +290,53 @@ def homoscedasticity_test_moderated_regression(df, dv, iv, moderator):
         model.model.exog
     )
 
-
-
     return lm_pvalue 
 
 
 
-def ancova_assumptions_pipeline(df, dv, iv, cov):
+def ancova_assumptions_pipeline(df, dv, iv, covariate):
     df_clean = df.copy()
+    remove_influential_by_cooks(df_clean, dv, iv, statistical_test="ANCOVA", covariate = covariate, factor2 = None , check_interaction= None)
     conduct_moderated_regression = False
-    df_clean = ancova_validation_pipeline(df, dv, iv, cov)
-    id_col = "Subject_ID"
+    df_clean = ancova_validation_pipeline(df, dv, iv, covariate)
+    id_col = "Patient_ID"
     df_clean= drop_duplicate_subjects(df_clean, id_col, keep="first")
-    linearity_x, linearity_y, linearity_r, linearity_p = check_linearity_predictor_dv(df_clean, dv, cov)
-    linearity_graph_cov_dv(linearity_x,linearity_y,linearity_r, linearity_p, dv, cov, show_plot=False, kind="hexbin")
+    linearity_x, linearity_y, linearity_r, linearity_p = check_linearity_predictor_dv(df_clean, dv, covariate)
+    linearity_graph_cov_dv(linearity_x,linearity_y,linearity_r, linearity_p, dv, covariate, show_plot=True, kind="hexbin")
     if linearity_p >= 0.05:
         df_clean, log_offset = log_transform(df_clean,dv ,new_column=None,offset="auto")
         logger.debug(f"Conducted log transformation on {dv} with an offset of {log_offset}")
-    homogeneity_of_slopes_p_val, homogeneity_of_slopes_table = check_homogeneity_of_slopes(df_clean,dv,iv,cov)
+    homogeneity_of_slopes_p_val, homogeneity_of_slopes_table = check_homogeneity_of_slopes(df_clean,dv,iv,covariate)
 
-    if homogeneity_of_slopes_p_val >= 0.05:
-        logger.debug(f"There's a significant interaction between {iv} and {cov}. Conducting moderated regression instead")
+    if homogeneity_of_slopes_p_val < 0.05:
+        logger.debug(f"There's a significant interaction between {iv} and {covariate}. Conducting moderated regression instead")
         conduct_moderated_regression = True
-        return conduct_moderated_regression
-    levene_ancova_stat, levene_ancova_p = levene_ancova(df_clean, dv, iv, cov, center='median')
-    check_normality_of_residuals_visual(df_clean,dv,iv,cov)
+        return df_clean, conduct_moderated_regression, None, linearity_p
+    levene_ancova_p = levene_ancova(df_clean, dv, iv, covariate, center='median')
+    check_normality_of_residuals_visual(df_clean,dv,iv,covariate)
 
-    return df_clean, conduct_moderated_regression,levene_ancova_p
+    return df_clean, conduct_moderated_regression,levene_ancova_p, linearity_p
 
 def moderated_regression_assumptions_pipeline(df, dv, iv, moderator):
     df_clean = df.copy()
+    df_clean = remove_influential_by_cooks(df_clean, dv, iv, statistical_test="Moderated Regression", covariate = moderator, factor2 = None , check_interaction= None)
     df_clean = moderated_regression_validation_pipeline(df, dv, iv, moderator)
-    id_col = "Subject_ID"
+    id_col = "Patient_ID"
     df_clean= drop_duplicate_subjects(df_clean, id_col, keep="first")
-    linearity_x, linearity_y, linearity_r, linearity_p = check_linearity_predictor_dv(df_clean, dv, cov)
-    linearity_graph_cov_dv(linearity_x,linearity_y,linearity_r, linearity_p, dv, cov, show_plot=False, kind="hexbin")
+    linearity_x, linearity_y, linearity_r, linearity_p = check_linearity_predictor_dv(df_clean, dv, moderator)
+    linearity_graph_cov_dv(linearity_x,linearity_y,linearity_r, linearity_p, dv, moderator, show_plot=True, kind="hexbin")
     if linearity_p >= 0.05:
         df_clean, log_offset = log_transform(df_clean,dv ,new_column=None,offset="auto")
         logger.debug(f"Conducted log transformation on {dv} with an offset of {log_offset}")
     breusch_pagan_p = homoscedasticity_test_moderated_regression(df, dv, iv, moderator)
     multicolinearity_check = check_vif(df, iv, moderator)
-    df_clean[moderator] = center_moderator(df, moderator, center=multicolinearity_check)
-
+    df_clean, moderator = center_moderator(df_clean, moderator, center=multicolinearity_check)
     return df_clean
 
 def anova_assumptions_pipeline(df,dv, iv, factor2):
     df_clean = df.copy()
     df_clean = anova_validation_pipeline (df_clean, dv, iv, factor2)
-    id_col = "Subject_ID"
+    id_col = "Patient_ID"
     df_clean= drop_duplicate_subjects(df_clean, id_col, keep="first")
     levene_stat, levene_p = levene_two_way_anova(df, dv, iv, factor2, center='median')
     return df_clean, levene_p
