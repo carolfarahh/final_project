@@ -158,11 +158,11 @@ Prerequisites:
 
 Installation and Execution:
 1. Clone the repository:
-   git clone https://github.com/<USERNAME>/<REPOSITORY_NAME>.git
+   git clone https://github.com/carolfarahh/final_project
 2. Enter the project folder:
-   cd <REPOSITORY_NAME>
+   cd <final_project>
 3. Install the required dependencies:
-   pip install -r requirements.txt
+   pip install pandas numpy scipy statsmodels matplotlib seaborn pingouin pytest
 4. Run the analysis:
    python main.py
 
