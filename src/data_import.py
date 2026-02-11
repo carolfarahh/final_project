@@ -1,39 +1,15 @@
 import pandas as pd
-import pingouin as pg
-import numpy as np
+from pathlib import Path
+from src.app_logger import logger
+#Loading data
+def load_data(path):
+    """"
+    Returns CSV file and raises FileNotFoundError in case the CSV file was not found
 
-def load_data(csv_path):
     """
-    Load HD dataset and return:
-    - analysis_df: Disease stage, Gene factor, Brain-volume-loss
-    - demo_df: Age, Gender (kept separate so they don't affect analysis)
-    """
-
-    df = pd.read_csv(csv_path)
-
-    # Normalize column names (simple & readable)
-    df.columns = df.columns.str.strip().str.lower()
-
-    required_columns = [
-        "Age",
-        "Sex",
-        "Disease_Stage",
-        "Gene/Factor",
-        "Brain_Volume_Loss"
-    ]
-
-    missing = [col for col in required_columns if col not in df.columns]
-    if missing:
-        raise ValueError(f"Missing columns: {missing}")
-
-    demo_df = df[["Age", "Gender"]].copy()
-    analysis_df = df[
-        ["Disease_Stage", "Gene/Factor", "Brain_Volume_Loss"]
-    ].copy()
-
-    return analysis_df, demo_df
-
-
-def load_data_c(file_path, columns_list):
-    data = pd.read_csv(file_path)
-    return data[columns_list]
+    # logger.debug("loading data")
+    path_new = Path(path)
+    if not path_new.exists():
+        raise FileNotFoundError(f"CSV file not found: {path_new.resolve()}")
+    logger.debug("Importing Data!")
+    return pd.read_csv(path)

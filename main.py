@@ -1,62 +1,38 @@
-#TODO: import relevant libraries and modules
-import pandas as pd
-import pingouin as pg
-import numpy as np
-from sklearn.ensemble import IsolationForest
-from scipy.stats import f_oneway
-
-from src.data_import import load_data_c
-from src.data_cleaning import stage_filter, gene_filter, transform_to_float, remove_outlier_isolate_forest
-from src.statistical_analysis import data_describe, levene_test, anova, welch_anova, tukey, gameshowell
-#TODO: load data
-
-required_columns = ["Age", "Sex", "Disease_Stage", "Gene/Factor", "Brain_Volume_Loss"]
-df = load_data_c("Huntington_Disease_Dataset.csv", required_columns)
-
-#TODO: Replace NAN with mean in columns with continuous variables
-
-coninouous_variables = ["Brain_Volume_Loss"]
-
-df = transform_to_float(df, coninouous_variables)
-
-#TODO: Filter data: based on values
-
-gene_list= ["HTT (Somatic Expansion)", "MLH1", "MSH3"]
-df = gene_filter(df, "Gene/Factor", gene_list)
-df= stage_filter(df, "Disease_Stage", "Pre-Symptomatic")
-
-#TODO: Filter data: remove outliers
-
-df=remove_outlier_isolate_forest(df,"Brain_Volume_Loss")
-
-#TODO: Descriptive statistics: provide general information regarding the data frame
-print(data_describe(df))
-
-grouped_data = df.groupby('Gene/Factor')['Brain_Volume_Loss'].mean()
-frequency_table = df["Gene/Factor"].value_counts()
-print(grouped_data)
-
-#TODO: Conduct levene test to check for homogeinity of variance
-#TODO: Conduct relevant statistical test to check for mean differences among groups and report results
-#TODO: In case of significance, conduct post-hoc test to find out where the difference occured 
-
-levene_results = levene_test(df, "Brain_Volume_Loss", "Gene/Factor")
-is_equal_var = levene_results['equal_var'].item()
-if is_equal_var== True:
-    f_stat, p_val = anova("Brain_Volume_Loss", df, "Gene/Factor")
-    print(f"--- Results: F = {f_stat:.4f}, p = {p_val:.4f} ---")
-    if p_val<0.05:
-       post_hoc_result = tukey(df, "Brain_Volume_Loss", "Gene/Factor")
-       print(post_hoc_result)
-    else:
-        print("The results were insignificant")
-else:
-    welch_anova_f_val, welch_anova_p_val = welch_anova(df, "Brain_Volume_Loss", "Gene/Factor")  
-    if welch_anova_p_val < 0.05:
-        post_hoc_result = gameshowell(df, "Brain_Volume_Loss", "Gene/Factor")
-        print(post_hoc_result['pval'])
+#Load data
+from src.data_import import load_data
+from src.statistical_assumptions import anova_assumptions_pipeline
+from src.data_visualization import eda_plots
+from src.data_cleaning import clean_pipeline
+from src.EDA import duplicates_info, numeric_summary, categorical_summary, group_descriptives
+from src.statistical_analysis import anova_pipeline, ancova_test_pipeline, moderated_regression_pipeline
 
 
+def project_pipeline():
+    df = load_data("/Users/carolfarah/final_projext_yas/final_project/Huntington_Disease_Dataset.csv")
+    # Clean_data
+    columns_list = ["Patient_ID", "Gene/Factor", "Disease_Stage", "Brain_Volume_Loss", "Age", "Sex"]
+    gene_list = ["mlh1", "msh3", "htt (somatic expansion)"]
+    numeric_columns = ["Brain_Volume_Loss", "Age"]
+    factor_list = ["Disease_Stage", "Sex"]
+    df_clean = clean_pipeline(df,selected_columns=columns_list, case_method ="lower", gene_column= "Gene/Factor",genes_keep=gene_list,numeric_columns = numeric_columns, categorical_columns=factor_list)
+    #EDA descriptives
+    duplicates_summary = duplicates_info(df_clean)
+    numeric_summary_df = numeric_summary(df_clean, numeric_columns)
+    categorical_summary_df = categorical_summary(df_clean, cols=["Gene/Factor", "Disease_Stage","Sex"])
+    group_descriptives_df = group_descriptives(df_clean,"Disease_Stage","Brain_Volume_Loss")
 
+    # #EDA plots
+    eda_plots(df_clean)
+    
+    #ANOVA
+    anova_pipeline(df_clean, "Brain_Volume_Loss", "Disease_Stage", "Sex", levene_p = None, alpha=0.05)
 
+    #ANCOVA
+    run_moderated_r_boolean = ancova_test_pipeline(df_clean, "Brain_Volume_Loss", "Disease_Stage", "Age", alpha=0.05)
 
+    #Moderate regression
+    
+    moderated_regression_pipeline(df_clean, "Brain_Volume_Loss", "Disease_Stage", "Age", conduct_moderated_regression = run_moderated_r_boolean, alpha=0.05)
+    return 
+
+project_pipeline()
